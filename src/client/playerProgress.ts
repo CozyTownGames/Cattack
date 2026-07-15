@@ -2,6 +2,7 @@ export type ProgressDelta = {
   wins?: number;
   xp?: number;
   catsCollected?: number;
+  cardsClaimed?: number;
 };
 
 export type PlayerProgress = {
@@ -16,7 +17,10 @@ const KEYS = {
   wins: 'player_total_wins',
   xp: 'player_total_xp',
   catsCollected: 'player_lifetime_cat_cards',
+  cardsClaimed: 'player_total_cards_claimed',
 };
+
+let progressSync = Promise.resolve();
 
 const readCount = (key: string): number => {
   const value = Number(localStorage.getItem(key) ?? '0');
@@ -73,15 +77,22 @@ export function reportPlayerProgress(delta: ProgressDelta): PlayerProgress {
   const wins = readCount(KEYS.wins) + Math.max(0, Math.floor(delta.wins ?? 0));
   const xp = readCount(KEYS.xp) + Math.max(0, Math.floor(delta.xp ?? 0));
   const catsCollected = readCount(KEYS.catsCollected) + Math.max(0, Math.floor(delta.catsCollected ?? 0));
+  const cardsClaimedDelta = Math.max(0, Math.floor(delta.cardsClaimed ?? 0));
+  const cardsClaimed = readCount(KEYS.cardsClaimed) + cardsClaimedDelta;
   localStorage.setItem(KEYS.wins, String(wins));
   localStorage.setItem(KEYS.xp, String(xp));
   localStorage.setItem(KEYS.catsCollected, String(catsCollected));
+  localStorage.setItem(KEYS.cardsClaimed, String(cardsClaimed));
 
-  fetch('/api/global-progress', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ wins, xp, catsCollected }),
-  }).catch((error) => console.error('Failed to sync player progress', error));
+  progressSync = progressSync
+    .then(async () => {
+      await fetch('/api/global-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wins, xp, catsCollected, cardsClaimed, cardsClaimedDelta }),
+      });
+    })
+    .catch((error) => console.error('Failed to sync player progress', error));
 
   return emitProgress(Math.max(0, Math.floor(delta.xp ?? 0)));
 }

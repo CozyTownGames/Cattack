@@ -12,6 +12,7 @@
     "lint": "eslint 'src/**/*.{ts,tsx}'",
     "login": "devvit login",
     "prettier": "prettier --write .",
+    "test": "node --experimental-transform-types --test tests/cardRules.test.mjs tests/cardClaimFlair.test.mjs",
     "type-check": "tsc --build"
   },
   "engines": {

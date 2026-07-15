@@ -12,6 +12,7 @@ import type {
   BattleChallengeStats,
   BattleTurnSnapshot,
 } from '../../shared/cardBattle';
+import { getPlayCardLimitForCats, MAX_EQUIPPED_CATS } from '../../shared/cardBattle';
 import { isBoardSkinId, isCardSkinId } from '../../shared/cosmetics';
 import {
   PLAYER_PROFILE_KEYS,
@@ -20,6 +21,7 @@ import {
   type StoredPlayerProfile,
 } from '../../shared/playerProfile';
 import type { DailyBoosterResponse, DailyBoosterReward } from '../../shared/dailyBooster';
+import { getCardClaimFlairTier } from '../../shared/cardClaimFlair';
 
 type ErrorResponse = {
   status: 'error';
@@ -53,7 +55,7 @@ const isBattleTurn = (value: unknown): value is BattleTurnSnapshot => {
   const validSuits = ['sakura', 'ghost', 'leaf', 'water'];
   return Array.isArray(cards)
     && cards.length > 0
-    && cards.length <= 5
+    && cards.length <= getPlayCardLimitForCats(cats)
     && cards.every((card) => (
       isRecord(card)
       && typeof card.rank === 'number'
@@ -63,12 +65,24 @@ const isBattleTurn = (value: unknown): value is BattleTurnSnapshot => {
       && typeof card.suit === 'string'
       && validSuits.includes(card.suit)
       && (card.holographic === undefined || typeof card.holographic === 'boolean')
+      && (card.seals === undefined || (
+        Array.isArray(card.seals)
+        && card.seals.length <= 3
+        && card.seals.every((seal) => seal === 'gold' || seal === 'red' || seal === 'purple')
+      ))
     ))
     && Array.isArray(cats)
+    && cats.length <= MAX_EQUIPPED_CATS
     && cats.every((cat) => typeof cat === 'string' && /^c(?:[1-9]|[1-3][0-9])$/.test(cat))
-    && (holographicCats === undefined || (Array.isArray(holographicCats) && holographicCats.every((cat) => typeof cat === 'string' && /^c(?:[1-9]|[1-3][0-9])$/.test(cat))))
+    && new Set(cats).size === cats.length
+    && (holographicCats === undefined || (
+      Array.isArray(holographicCats)
+      && holographicCats.length <= cats.length
+      && holographicCats.every((cat) => typeof cat === 'string' && cats.includes(cat))
+    ))
     && typeof score === 'number'
     && Number.isFinite(score)
+    && Number.isSafeInteger(score)
     && score >= 0;
 };
 
@@ -86,7 +100,7 @@ const isPublishableBattle = (
       && title.trim().length <= 60
     ))
     && typeof cumulativeScore === 'number'
-    && Number.isFinite(cumulativeScore)
+    && Number.isSafeInteger(cumulativeScore)
     && cumulativeScore > 0
     && cumulativeScore === turns.reduce((total, turn) => total + turn.score, 0)
     && (boardSkin === undefined || isBoardSkinId(boardSkin))
@@ -784,11 +798,17 @@ api.post('/submit-card-score', async (c) => {
 
   try {
     const body: unknown = await c.req.json();
-    if (!isRecord(body) || typeof body.score !== 'number' || !Number.isFinite(body.score)) {
+    if (!isRecord(body) || typeof body.score !== 'number' || !Number.isSafeInteger(body.score)) {
       return c.json({ status: 'error', message: 'Invalid card score' }, 400);
     }
+    const turns = Array.isArray(body.turns) && body.turns.length === 3 && body.turns.every(isBattleTurn)
+      ? body.turns
+      : null;
+    if (!turns || body.score !== turns.reduce((total, turn) => total + turn.score, 0)) {
+      return c.json({ status: 'error', message: 'Card score does not match battle turns' }, 400);
+    }
     const score = Math.max(0, Math.floor(body.score));
-    const cards = Array.isArray(body.cards) ? body.cards : [];
+    const cards = turns.flatMap((turn) => turn.cards);
     const xp = typeof body.xp === 'number' && Number.isFinite(body.xp) ? Math.max(0, Math.floor(body.xp)) : 0;
     const highestHand = typeof body.highestHand === 'number' && Number.isFinite(body.highestHand)
       ? Math.max(0, Math.floor(body.highestHand))
@@ -858,11 +878,38 @@ const GLOBAL_LEADERBOARD_KEYS = {
   wins: 'global:leaderboard:wins',
   xp: 'global:leaderboard:xp',
   cats: 'global:leaderboard:cats',
+  cardsClaimed: 'global:leaderboard:cards-claimed',
 };
 
 const readProgressCount = (value: unknown): number | null => (
   typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value) && value >= 0 ? value : null
 );
+
+const syncCardClaimFlair = async (username: string, cardsClaimed: number): Promise<void> => {
+  const subredditName = context.subredditName;
+  if (!subredditName) return;
+
+  const existingCardsClaimed = await redis.zScore(GLOBAL_LEADERBOARD_KEYS.cardsClaimed, username);
+  const rankedCardsClaimed = Math.max(existingCardsClaimed ?? 0, cardsClaimed);
+  await redis.zAdd(GLOBAL_LEADERBOARD_KEYS.cardsClaimed, { member: username, score: rankedCardsClaimed });
+
+  const earnedTier = getCardClaimFlairTier(rankedCardsClaimed);
+  if (!earnedTier) return;
+  const ascendingRank = await redis.zRank(GLOBAL_LEADERBOARD_KEYS.cardsClaimed, username);
+  const rankedPlayers = await redis.zCard(GLOBAL_LEADERBOARD_KEYS.cardsClaimed);
+  if (ascendingRank === undefined) return;
+  const globalRank = rankedPlayers - ascendingRank;
+
+  try {
+    await reddit.setUserFlair({
+      subredditName,
+      username,
+      text: `${earnedTier.emoji} ${rankedCardsClaimed} Cats | Global Rank #${globalRank}`,
+    });
+  } catch (error) {
+    console.error('Failed to apply card claim flair:', error);
+  }
+};
 
 api.post('/global-progress', async (c) => {
   try {
@@ -871,13 +918,23 @@ api.post('/global-progress', async (c) => {
     const wins = readProgressCount(body.wins);
     const xp = readProgressCount(body.xp);
     const cats = readProgressCount(body.catsCollected);
-    if (wins === null || xp === null || cats === null) return c.json({ status: 'error', message: 'Invalid progress' }, 400);
+    const cardsClaimed = readProgressCount(body.cardsClaimed);
+    const cardsClaimedDelta = readProgressCount(body.cardsClaimedDelta);
+    if (
+      wins === null
+      || xp === null
+      || cats === null
+      || cardsClaimed === null
+      || cardsClaimedDelta === null
+      || cardsClaimedDelta > cardsClaimed
+    ) return c.json({ status: 'error', message: 'Invalid progress' }, 400);
     const username = await reddit.getCurrentUsername();
     if (!username) return c.json({ status: 'error', message: 'Reddit account required' }, 401);
     for (const [key, score] of [[GLOBAL_LEADERBOARD_KEYS.wins, wins], [GLOBAL_LEADERBOARD_KEYS.xp, xp], [GLOBAL_LEADERBOARD_KEYS.cats, cats]] as const) {
       const existing = await redis.zScore(key, username);
       await redis.zAdd(key, { member: username, score: Math.max(existing ?? 0, score) });
     }
+    if (cardsClaimedDelta > 0) await syncCardClaimFlair(username, cardsClaimed);
     return c.json({ status: 'success' });
   } catch (error) {
     console.error('Error syncing global progress:', error);

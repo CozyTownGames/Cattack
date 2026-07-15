@@ -524,6 +524,7 @@ export function showBoosterPackOpeningLegacy(scene: BoosterScene): void {
       );
       reportPlayerProgress({
         catsCollected: newCatCount,
+        cardsClaimed: boosterCats.length,
         xp: newCatCount * 25,
       });
 
@@ -803,7 +804,7 @@ export function showBoosterPackOpening(scene: BoosterScene): void {
       'player_companion_cats',
       JSON.stringify(scene.equippedCats)
     );
-    reportPlayerProgress({ catsCollected: newCatCount, xp: newCatCount * 25 });
+    reportPlayerProgress({ catsCollected: newCatCount, cardsClaimed: boosterCats.length, xp: newCatCount * 25 });
     scene.savePlayerData();
   };
 

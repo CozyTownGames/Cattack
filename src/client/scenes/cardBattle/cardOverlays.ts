@@ -751,6 +751,8 @@ export function showPrizeSelection(scene: CardBattleScene): void {
       scene.showFloatingText(width / 2, height / 2 - 120, `UNLOCKED COMPANION: ${COMPANION_CATS[newCatId].name}!`, '#ffbb00');
     }
 
+    reportPlayerProgress({ cardsClaimed: unowned.length > 0 ? 2 : 1 });
+
     scene.savePlayerData();
 
     // Particle explosion

@@ -36,6 +36,7 @@ import type {
   BattleChallengeSnapshot,
   BattleTurnSnapshot,
 } from '../../shared/cardBattle';
+import { BASE_PLAY_CARD_LIMIT, getPlayCardLimitForCats, INITIAL_BATTLE_DISCARDS } from '../../shared/cardBattle';
 import type { ExpeditionOpponent, WildBattleResult } from '../../shared/expedition';
 import { gameStore } from '../../shared/gameStore';
 import {
@@ -116,7 +117,7 @@ export class CardBattleScene extends Phaser.Scene {
 
   // Three-turn showdown state
   public handsRemaining = 3;
-  public discardsRemaining = 5;
+  public discardsRemaining = INITIAL_BATTLE_DISCARDS;
   public playerCumulativeScore = 0;
   public opponentCumulativeScore = 0;
   public highestHandScore = 0;
@@ -124,6 +125,7 @@ export class CardBattleScene extends Phaser.Scene {
   public currentTurn = 1;
   private currentDeckPool: Card[] = [];
   private challengeDeckCycle = 0;
+  private battleScoreSeed = crypto.randomUUID();
   private equippedBoardSkin: BoardSkinId = 'classic';
   private equippedCardSkin: CardSkinId = 'classic';
 
@@ -153,12 +155,7 @@ export class CardBattleScene extends Phaser.Scene {
   ];
 
   public getPlayerPlayCardLimit(): number {
-    const resolvedCats = this.equippedCats.map((catId, index) => {
-      if (catId === 'c39') return this.equippedCats[0] ?? catId;
-      if (catId === 'c32') return this.equippedCats[index + 1] ?? catId;
-      return catId;
-    });
-    return resolvedCats.includes('c25') ? 6 : 5;
+    return getPlayCardLimitForCats(this.equippedCats);
   }
 
   public createEmptyPlayerPlaySlots(): (Card | null)[] {
@@ -240,7 +237,7 @@ export class CardBattleScene extends Phaser.Scene {
     this.scoreMult = 1.0;
     this.totalScore = 0;
     this.handsRemaining = 3;
-    this.discardsRemaining = 5;
+    this.discardsRemaining = INITIAL_BATTLE_DISCARDS;
     this.playerCumulativeScore = 0;
     this.opponentCumulativeScore = 0;
     this.highestHandScore = 0;
@@ -1077,7 +1074,7 @@ export class CardBattleScene extends Phaser.Scene {
     
     // Reset player resources
     this.handsRemaining = 3;
-    this.discardsRemaining = 5;
+    this.discardsRemaining = INITIAL_BATTLE_DISCARDS;
     this.playerCumulativeScore = 0;
     this.opponentCumulativeScore = 0;
     this.currentTurn = 1;
@@ -1119,11 +1116,13 @@ export class CardBattleScene extends Phaser.Scene {
       this.challengeDeckCycle = 0;
     }
 
-    this.botHands = [
-      challenger.cards.slice(0, 5),
-      challenger.cards.slice(5, 10),
-      challenger.cards.slice(10, 15),
-    ];
+    this.botHands = this.recordedBattle
+      ? this.recordedBattle.turns.map((turn) => turn.cards.map((card) => ensureCard(card)))
+      : [
+          challenger.cards.slice(0, BASE_PLAY_CARD_LIMIT),
+          challenger.cards.slice(BASE_PLAY_CARD_LIMIT, BASE_PLAY_CARD_LIMIT * 2),
+          challenger.cards.slice(BASE_PLAY_CARD_LIMIT * 2, BASE_PLAY_CARD_LIMIT * 3),
+        ];
     this.botHand = this.botHands[0] ?? [];
 
     if (this.recordedBattle) {
@@ -1161,10 +1160,10 @@ export class CardBattleScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const opponentY = this.getOpponentY(height);
     const opScale = this.getCardScale();
-    const spacing = this.getOpponentCardSpacing(width, opScale);
+    const spacing = this.getOpponentCardSpacing(width, opScale, this.botHand.length);
 
-    challenger.cards.slice(0, 5).forEach((c, idx) => {
-      const rx = this.getOpponentHandCenterX(width) + (idx - 2) * spacing;
+    this.botHand.forEach((c, idx) => {
+      const rx = this.getOpponentHandCenterX(width) + (idx - (this.botHand.length - 1) / 2) * spacing;
       const cardSprite = this.createCardSprite(rx, opponentY, c, true);
       cardSprite.setScale(opScale);
       this.opponentCardSprites.push(cardSprite);
@@ -1181,9 +1180,10 @@ export class CardBattleScene extends Phaser.Scene {
 
     // Auto-equip up to 3 random cats from owned inventory for this match
     if (this.ownedCats.length > 0) {
+      const uniqueOwnedCats = [...new Set(this.ownedCats)].filter((catId) => this.isCompanionCatId(catId));
       const shuffledOwned = challengeSeed
-        ? shuffleWithSeed([...this.ownedCats], `${challengeSeed}:challenger-cats`)
-        : Phaser.Utils.Array.Shuffle([...this.ownedCats]);
+        ? shuffleWithSeed(uniqueOwnedCats, `${challengeSeed}:challenger-cats`)
+        : Phaser.Utils.Array.Shuffle(uniqueOwnedCats);
       this.equippedCats = shuffledOwned.slice(0, 3);
       localStorage.setItem('player_companion_cats', JSON.stringify(this.equippedCats));
     }
@@ -1334,7 +1334,7 @@ export class CardBattleScene extends Phaser.Scene {
 
 
   private dealPlayerHand(): void {
-    const initialHandSize = 8 + (this.getPlayerPlayCardLimit() - 5);
+    const initialHandSize = 8 + (this.getPlayerPlayCardLimit() - BASE_PLAY_CARD_LIMIT);
     this.playerHand = this.drawCards(initialHandSize);
     this.renderPlayerHand();
   }
@@ -1462,7 +1462,7 @@ export class CardBattleScene extends Phaser.Scene {
           this.cardSpritesInPlay[slotIdx] = null;
         }
 
-        const handIdx = this.playerHand.findIndex(hc => hc.id === card.id);
+        const handIdx = this.playerHand.findIndex((handCard) => handCard === card);
         if (handIdx !== -1) {
           selectedIndices.push(handIdx);
         }
@@ -1475,7 +1475,7 @@ export class CardBattleScene extends Phaser.Scene {
 
     this.selectedCards = this.createEmptyPlayerPlaySlots();
 
-    const maxHandSize = 8 + (this.getPlayerPlayCardLimit() - 5);
+    const maxHandSize = 8 + (this.getPlayerPlayCardLimit() - BASE_PLAY_CARD_LIMIT);
     const needed = maxHandSize - this.playerHand.length;
     if (needed > 0) {
       const drawn = this.drawCards(needed);
@@ -1622,9 +1622,10 @@ export class CardBattleScene extends Phaser.Scene {
     const initial = calculateScore(selected, this.equippedCats);
     const isFinalHand = this.isBattleStarted ? this.handsRemaining === 0 : this.handsRemaining === 1;
     const random = this.createPlayerScoreRandom(selected);
-    return applyCompanionCats(this.equippedCats, selected, initial, { 
+    const selectedCards = new Set(selected);
+    return applyCompanionCats(this.equippedCats, selected, initial, {
       isFinalHand,
-      unplayedHand: this.playerHand,
+      unplayedHand: this.playerHand.filter((card) => !selectedCards.has(card)),
       discardsRemaining: this.discardsRemaining,
       holographicCats: [...this.holographicCats],
       ...(random ? { random } : {}),
@@ -1632,13 +1633,22 @@ export class CardBattleScene extends Phaser.Scene {
   }
 
   public createPlayerScoreRandom(selected: Card[]): (() => number) | undefined {
-    const challengeSeed = this.recordedBattle?.seed;
-    if (!challengeSeed) return undefined;
+    const challengeSeed = this.recordedBattle?.seed ?? this.battleScoreSeed;
     const cardKey = selected
       .map((card) => `${card.suit}-${card.rank}-${card.holographic ? 'h' : 'n'}-${card.seals.join('.')}`)
       .join('|');
     return createSeededRandom(
       `${challengeSeed}:score:${this.currentTurn}:${this.discardsRemaining}:${this.equippedCats.join(',')}:${cardKey}`
+    );
+  }
+
+  public createBotScoreRandom(selected: Card[]): () => number {
+    const scoreSeed = this.recordedBattle?.seed ?? this.battleScoreSeed;
+    const cardKey = selected
+      .map((card) => `${card.suit}-${card.rank}-${card.holographic ? 'h' : 'n'}-${card.seals.join('.')}`)
+      .join('|');
+    return createSeededRandom(
+      `${scoreSeed}:bot-score:${this.currentTurn}:${this.botEquippedCats.join(',')}:${cardKey}`
     );
   }
 
@@ -1801,8 +1811,12 @@ export class CardBattleScene extends Phaser.Scene {
   public concludeBattle(playerWonOverride?: boolean): void {
     if (this.equippedCats.includes('c24')) {
       if (Math.random() * 6 < 1) {
-        this.ownedCats = this.ownedCats.filter((id) => id !== 'c24');
-        localStorage.setItem('player_owned_companion_cats', JSON.stringify(this.ownedCats));
+        const destroyedIndex = this.ownedCats.indexOf('c24');
+        if (destroyedIndex >= 0) this.ownedCats.splice(destroyedIndex, 1);
+        this.equippedCats = this.equippedCats.filter((id) => id !== 'c24');
+        if (!this.ownedCats.includes('c24')) this.holographicCats.delete('c24');
+        localStorage.setItem('player_holographic_companion_cats', JSON.stringify([...this.holographicCats]));
+        this.savePlayerData();
         this.showFloatingText(this.scale.width / 2, this.scale.height / 2 - 80, 'XMAS CAT DESTROYED!', '#ff3333');
       }
     }
@@ -1851,7 +1865,7 @@ export class CardBattleScene extends Phaser.Scene {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           score: this.playerCumulativeScore,
-          cards: this.selectedCards.filter((c) => c !== null),
+          turns: this.playerTurnSnapshots,
           xp: getPlayerProgress().totalXp,
           highestHand: this.highestHandScore,
           highestMult: this.highestHandMult,
@@ -1975,8 +1989,12 @@ export class CardBattleScene extends Phaser.Scene {
     } else {
       const wasOwned = this.ownedCats.includes(prize.catId);
       this.ownedCats.push(prize.catId);
-      if (!wasOwned) reportPlayerProgress({ catsCollected: 1, xp: 25 });
+      reportPlayerProgress({
+        catsCollected: wasOwned ? 0 : 1,
+        xp: wasOwned ? 0 : 25,
+      });
     }
+    reportPlayerProgress({ cardsClaimed: 1 });
     this.savePlayerData();
     this.resultBanner?.setVisible(true);
     this.showChallengePrompt();
@@ -2402,10 +2420,11 @@ export class CardBattleScene extends Phaser.Scene {
     return cardScale * (this.isMobileLayout() ? 0.7 : 0.86);
   }
 
-  private getOpponentCardSpacing(width: number, cardScale: number): number {
-    return this.isMobileLayout(width)
-      ? Math.min(50 * cardScale, width / 10.4)
-      : Math.min(60 * cardScale, width / 9.6);
+  private getOpponentCardSpacing(width: number, cardScale: number, cardCount = BASE_PLAY_CARD_LIMIT): number {
+    if (cardCount <= 1) return 0;
+    const cardWidth = 59 * cardScale;
+    const preferredSpacing = (this.isMobileLayout(width) ? 50 : 60) * cardScale;
+    return Math.min(preferredSpacing, (width - cardWidth - 24) / (cardCount - 1));
   }
 
   private getOpponentHandCenterX(width = this.scale.width): number {
@@ -2416,12 +2435,10 @@ export class CardBattleScene extends Phaser.Scene {
     return width / 2 + (this.isMobileLayout(width) ? 18 : 0);
   }
 
-  private getPlayCardSpacing(width: number, cardScale: number, cardCount = 5): number {
-    if (cardCount === 6) {
-      const cardWidth = 59 * cardScale;
-      return Math.min(88 * cardScale, (width - cardWidth - 24) / (cardCount - 1));
-    }
-    return Math.min(100 * cardScale, width / 5.2);
+  private getPlayCardSpacing(width: number, cardScale: number, cardCount = BASE_PLAY_CARD_LIMIT): number {
+    if (cardCount <= 1) return 0;
+    const cardWidth = 59 * cardScale;
+    return Math.min(100 * cardScale, (width - cardWidth - 24) / (cardCount - 1));
   }
 
   private getBattleButtonY(height = this.scale.height): number {
@@ -2593,9 +2610,9 @@ export class CardBattleScene extends Phaser.Scene {
     // Reposition opponent cards
     const opponentY = this.getOpponentY(height);
     const opScale = this.getCardScale();
-    const spacing = this.getOpponentCardSpacing(width, opScale);
+    const spacing = this.getOpponentCardSpacing(width, opScale, this.opponentCardSprites.length);
     this.opponentCardSprites.forEach((sprite, idx) => {
-      const rx = this.getOpponentHandCenterX(width) + (idx - 2) * spacing;
+      const rx = this.getOpponentHandCenterX(width) + (idx - (this.opponentCardSprites.length - 1) / 2) * spacing;
       sprite.setPosition(rx, opponentY);
       sprite.setScale(opScale);
     });
@@ -2657,6 +2674,7 @@ export class CardBattleScene extends Phaser.Scene {
       unplayedHand: [],
       discardsRemaining: 0,
       holographicCats: [...this.botHolographicCats],
+      random: this.createBotScoreRandom(sorted),
     });
     const recordedScore = this.botScoresByTurn[this.currentTurn - 1];
     return recordedScore === undefined ? resolved : { ...resolved, score: recordedScore };
@@ -2670,15 +2688,18 @@ export class CardBattleScene extends Phaser.Scene {
     this.botEquippedCats = this.botCatsByTurn[this.currentTurn - 1] ?? this.botEquippedCats;
     this.botHolographicCats = new Set(this.recordedBattle?.turns[this.currentTurn - 1]?.holographicCats ?? []);
     this.renderBotCompanionCats();
-    this.opponentCardSprites.forEach((sprite, index) => {
-      const card = nextHand[index];
-      if (!card) return;
-      sprite.setData('number', card.rank);
-      sprite.setData('family', card.suit);
-      sprite.setData('rank', card.rank);
-      sprite.setData('suit', card.suit);
-      sprite.setData('faceDown', true);
-      drawCardGraphics(this, sprite, true);
+    this.opponentCardSprites.forEach((sprite) => sprite.destroy());
+    this.opponentCardSprites = [];
+
+    const { width, height } = this.scale;
+    const opponentY = this.getOpponentY(height);
+    const cardScale = this.getCardScale();
+    const spacing = this.getOpponentCardSpacing(width, cardScale, nextHand.length);
+    nextHand.forEach((card, index) => {
+      const x = this.getOpponentHandCenterX(width) + (index - (nextHand.length - 1) / 2) * spacing;
+      const sprite = this.createCardSprite(x, opponentY, card, true);
+      sprite.setScale(cardScale);
+      this.opponentCardSprites.push(sprite);
     });
   }
 

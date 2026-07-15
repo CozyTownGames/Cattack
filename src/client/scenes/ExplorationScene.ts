@@ -1005,7 +1005,13 @@ export class ExplorationScene extends Phaser.Scene {
     const haul = gameStore.expeditionHaul;
     emitExpeditionGoldChanged(0);
     if (haul.gold > 0) changePlayerGold(haul.gold);
-    if (haul.xp > 0 || haul.cats.length > 0) reportPlayerProgress({ xp: haul.xp, catsCollected: haul.cats.length });
+    if (haul.xp > 0 || haul.cards.length > 0 || haul.cats.length > 0) {
+      reportPlayerProgress({
+        xp: haul.xp,
+        catsCollected: haul.cats.length,
+        cardsClaimed: haul.cards.length + haul.cats.length,
+      });
+    }
     haul.cards.forEach((card) => this.saveFoundCard(card));
     haul.cats.forEach((catId) => this.saveFoundCat(catId));
     this.player.setVelocity(0);

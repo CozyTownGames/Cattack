@@ -133,56 +133,56 @@ export function runScoreCalculation(selected: Card[], equippedCats: string[] = [
   const isFlush = Object.values(suitCounts).some((c) => c >= flushThreshold);
 
   // ── Straight detection ──────────────────────────────────────────
-  let isStraight = false;
   const straightThreshold = resolvedEquipped.includes('c28') ? 4 : 5;
   const canSkip = resolvedEquipped.includes('c31');
 
-  if (cards.length >= straightThreshold) {
-    const getSubsets = (array: Card[], size: number): Card[][] => {
-      if (size === 1) return array.map(v => [v]);
-      const result: Card[][] = [];
-      for (let i = 0; i <= array.length - size; i++) {
-        const head = array[i]!;
-        const tailSubsets = getSubsets(array.slice(i + 1), size - 1);
-        for (const tail of tailSubsets) {
-          result.push([head, ...tail]);
-        }
-      }
-      return result;
-    };
-
-    const checkSubsets = (array: Card[]) => {
-      const subsets = getSubsets(array, straightThreshold);
-      for (const subset of subsets) {
-        let subsetStraight = true;
-        for (let i = 0; i < subset.length - 1; i++) {
-          const diff = subset[i + 1]!.rank - subset[i]!.rank;
-          if (canSkip) {
-            if (diff < 1 || diff > 2) subsetStraight = false;
-          } else {
-            if (diff !== 1) subsetStraight = false;
-          }
-        }
-        if (subsetStraight) return true;
-      }
-      return false;
-    };
-
-    isStraight = checkSubsets(sorted);
-
-    // If not straight, check if a Void (14) can act as 1
-    if (!isStraight && sorted.some((c) => c.rank === 14)) {
-      const adjusted = sorted.map((c) =>
-        c.rank === 14 ? { ...c, rank: 1, base_nips: 1 } : c
-      );
-      adjusted.sort((a, b) => a.rank - b.rank);
-      isStraight = checkSubsets(adjusted);
+  const getSubsets = (array: Card[], size: number): Card[][] => {
+    if (size === 1) return array.map((value) => [value]);
+    const result: Card[][] = [];
+    for (let index = 0; index <= array.length - size; index++) {
+      const head = array[index];
+      if (!head) continue;
+      const tailSubsets = getSubsets(array.slice(index + 1), size - 1);
+      tailSubsets.forEach((tail) => result.push([head, ...tail]));
     }
-  }
+    return result;
+  };
+
+  const checkStraightSubsets = (candidateCards: Card[]): boolean => {
+    if (candidateCards.length < straightThreshold) return false;
+    return getSubsets([...candidateCards].sort((a, b) => a.rank - b.rank), straightThreshold).some((subset) => (
+      subset.every((card, index) => {
+        const next = subset[index + 1];
+        if (!next) return true;
+        const difference = next.rank - card.rank;
+        return canSkip ? difference >= 1 && difference <= 2 : difference === 1;
+      })
+    ));
+  };
+
+  const containsStraight = (candidateCards: Card[]): boolean => {
+    if (checkStraightSubsets(candidateCards)) return true;
+    if (!candidateCards.some((card) => card.rank === 14)) return false;
+    const aceLowCards = candidateCards.map((card) => (
+      card.rank === 14 ? { ...card, rank: 1, base_nips: 1 } : card
+    ));
+    return checkStraightSubsets(aceLowCards);
+  };
+
+  const isStraight = containsStraight(sorted);
+  const cardsBySuit = new Map<CardSuit, Card[]>();
+  cards.forEach((card) => cardsBySuit.set(card.suit, [...(cardsBySuit.get(card.suit) ?? []), card]));
+  const isStraightFlush = [...cardsBySuit.values()].some((suitedCards) => (
+    suitedCards.length >= straightThreshold && containsStraight(suitedCards)
+  ));
 
   // ── Combo priority ────────────────────────────────────────────
   // Straight Flush > Five of a Kind > Four of a Kind > Full House > Flush > Straight > Three > Two Pair > Pair > High Card
-  if (isStraight && isFlush) {
+  const hasFullHouse = counts.some((count, index) => (
+    count >= 3 && counts.some((otherCount, otherIndex) => otherIndex !== index && otherCount >= 2)
+  ));
+
+  if (isStraightFlush) {
     mult += 12.0;
     comboName = 'Straight Flush';
   } else if (maxCount === 5) {
@@ -191,7 +191,7 @@ export function runScoreCalculation(selected: Card[], equippedCats: string[] = [
   } else if (maxCount === 4) {
     mult += 8.0;
     comboName = 'Four of a Kind';
-  } else if (maxCount === 3 && counts.includes(2)) {
+  } else if (hasFullHouse) {
     mult += 5.5;
     comboName = 'Full House';
   } else if (isFlush) {

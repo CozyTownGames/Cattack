@@ -242,6 +242,8 @@ export function CardShopView({ onClose }: CardShopViewProps) {
       setDeckCards(nextDeck);
     }
 
+    reportPlayerProgress({ cardsClaimed: 1 });
+
     setOpeningPack(null);
     setPackRevealed(false);
     setOpenedRewards([]);

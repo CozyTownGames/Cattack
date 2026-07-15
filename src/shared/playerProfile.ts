@@ -5,6 +5,7 @@ export const PLAYER_PROFILE_KEYS = [
   'player_total_xp',
   'player_total_wins',
   'player_lifetime_cat_cards',
+  'player_total_cards_claimed',
   'player_card_deck',
   'player_unlocked_cards',
   'player_owned_companion_cats',

@@ -1,4 +1,5 @@
-import { Card } from './cardRules';
+import type { Card } from './cardRules';
+import { INITIAL_BATTLE_DISCARDS, resolveBattleCatIds } from '../../../shared/cardBattle';
 
 export type CompanionCatId =
   | 'c1' | 'c2' | 'c3' | 'c4' | 'c5'
@@ -80,16 +81,7 @@ export function applyCompanionCats(
   let mult = initialScore.mult;
   const random = context?.random ?? Math.random;
 
-  const resolvedEquipped = equipped.map((catId, index) => {
-    let resolved = catId;
-    if (resolved === 'c39') {
-      resolved = equipped[0] || 'c39';
-    }
-    if (resolved === 'c32') {
-      resolved = equipped[index + 1] || 'c32';
-    }
-    return resolved;
-  });
+  const resolvedEquipped = resolveBattleCatIds(equipped);
 
   // 1. Process onCardScored triggers (and retriggers!)
   for (let i = 0; i < selectedCards.length; i++) {
@@ -183,7 +175,7 @@ export function applyCompanionCats(
       const minRank = Math.min(...context.unplayedHand.map(c => c.rank));
       mult += minRank;
     } else if (cat.id === 'c35') {
-      const discardsUsed = 4 - (context?.discardsRemaining ?? 4);
+      const discardsUsed = INITIAL_BATTLE_DISCARDS - (context?.discardsRemaining ?? INITIAL_BATTLE_DISCARDS);
       const catoflaugeMult = Math.max(1.0, 2.0 - (discardsUsed * 0.1));
       mult *= catoflaugeMult;
     } else if (cat.id === 'c36' && hasStraight) {

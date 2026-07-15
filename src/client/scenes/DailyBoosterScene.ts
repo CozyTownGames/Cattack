@@ -151,13 +151,14 @@ export class DailyBoosterScene extends Phaser.Scene {
         holos.add(reward.catId);
         localStorage.setItem('player_holographic_companion_cats', JSON.stringify([...holos]));
       }
-      reportPlayerProgress({ catsCollected: 1, xp: 25 });
+      reportPlayerProgress({ catsCollected: 1, cardsClaimed: 1, xp: 25 });
       return;
     }
     const raw: unknown = JSON.parse(localStorage.getItem('player_card_deck') ?? '[]');
     const deck = Array.isArray(raw) ? raw : [];
     deck.push(makeCard(reward.suit, reward.rank, reward.kind === 'holoDeck', reward.kind === 'sealedDeck' ? [reward.seal] : []));
     localStorage.setItem('player_card_deck', JSON.stringify(deck));
+    reportPlayerProgress({ cardsClaimed: 1 });
   }
 
   private showFinished(message: string, buttonLabel = 'MAIN MENU'): void {

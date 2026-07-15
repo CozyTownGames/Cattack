@@ -5,6 +5,7 @@ import { COMPANION_CATS } from './companionCats';
 import { drawCardGraphics } from './cardGraphics';
 import { isSoundMuted } from '../../soundSettings';
 import { changePlayerGold } from '../../playerProgress';
+import { BASE_PLAY_CARD_LIMIT } from '../../../shared/cardBattle';
 
 // Queue entry types for sequential scoring visualization
 type QueueEntry =
@@ -95,9 +96,8 @@ export function runSequentialScoringSequence(scene: CardBattleScene): void {
 
   // Helper to refresh the live scoreboard
   const refreshBoard = () => {
-    const preview = Math.floor(liveNips * liveMult);
     scene.scoreText.setText(
-      `${liveNips} Nips  ×  ${liveMult.toFixed(1)} Mult  =  ${preview.toLocaleString()}`
+      `${scoreResult.base} Nips  ×  ${scoreResult.mult.toFixed(1)} Mult  =  ${scoreResult.score.toLocaleString()}`
     );
     // Pulse the score text
     scene.tweens.add({
@@ -163,7 +163,7 @@ export function runSequentialScoringSequence(scene: CardBattleScene): void {
     resolvedEquipped.forEach((catId, catIdx) => {
       const origId = scene.equippedCats[catIdx];
       if (!origId) return;
-      const cat = COMPANION_CATS[origId];
+      const cat = COMPANION_CATS[catId];
       if (!cat || cat.trigger !== 'onCardScored') return;
       // Skip retrigger cats
       if (['c20','c21','c22','c23'].includes(catId)) return;
@@ -189,7 +189,7 @@ export function runSequentialScoringSequence(scene: CardBattleScene): void {
   resolvedEquipped.forEach((catId, catIdx) => {
     const origId = scene.equippedCats[catIdx];
     if (!origId) return;
-    const cat = COMPANION_CATS[origId];
+    const cat = COMPANION_CATS[catId];
     if (!cat || cat.trigger !== 'onHandEvaluated') return;
 
     let nips = 0, mult = 0, label = CAT_FLOAT_LABELS[catId] || 'CAT POWER!';
@@ -401,7 +401,7 @@ export function runSequentialScoringSequence(scene: CardBattleScene): void {
     scene.totalScore = scene.playerCumulativeScore;
 
     scene.scoreText.setText(
-      `${liveNips} Nips  ×  ${liveMult.toFixed(1)} Mult  =  ${finalScore.toLocaleString()}`
+      `${scoreResult.base} Nips  ×  ${scoreResult.mult.toFixed(1)} Mult  =  ${finalScore.toLocaleString()}`
     );
 
     scene.tweens.add({
@@ -450,6 +450,7 @@ export function runBotSequentialScoringSequence(scene: CardBattleScene): void {
   const getDelay = () => Math.max(60, 280 * Math.pow(0.88, stepCount));
 
   const botScoreResult = scene.evaluate_bot_hand();
+  const botScoreRandom = scene.createBotScoreRandom(botHandCards);
   let liveNips = 0;
   let liveMult = 1.0;
   const comboName = botScoreResult.combo;
@@ -464,9 +465,8 @@ export function runBotSequentialScoringSequence(scene: CardBattleScene): void {
   });
 
   const refreshBoard = () => {
-    const preview = Math.floor(liveNips * liveMult);
     scene.scoreText.setText(
-      `Score: ${liveNips} Nips × ${liveMult.toFixed(1)} Mult = ${preview.toLocaleString()}`
+      `Score: ${botScoreResult.base} Nips × ${botScoreResult.mult.toFixed(1)} Mult = ${botScoreResult.score.toLocaleString()}`
     );
     scene.tweens.add({
       targets: scene.scoreText,
@@ -522,7 +522,7 @@ export function runBotSequentialScoringSequence(scene: CardBattleScene): void {
     resolvedEquipped.forEach((catId, catIdx) => {
       const origId = scene.botEquippedCats[catIdx];
       if (!origId) return;
-      const cat = COMPANION_CATS[origId];
+      const cat = COMPANION_CATS[catId];
       if (!cat || cat.trigger !== 'onCardScored') return;
       if (['c20','c21','c22','c23'].includes(catId)) return;
 
@@ -546,7 +546,7 @@ export function runBotSequentialScoringSequence(scene: CardBattleScene): void {
   resolvedEquipped.forEach((catId, catIdx) => {
     const origId = scene.botEquippedCats[catIdx];
     if (!origId) return;
-    const cat = COMPANION_CATS[origId];
+    const cat = COMPANION_CATS[catId];
     if (!cat || cat.trigger !== 'onHandEvaluated') return;
 
     let nips = 0, mult = 0, label = CAT_FLOAT_LABELS[catId] || 'CAT POWER!';
@@ -568,7 +568,7 @@ export function runBotSequentialScoringSequence(scene: CardBattleScene): void {
     else if (catId === 'c24') { mult = 15; }
     else if (catId === 'c27' && botHandCards.length <= 2) { mult = 2.0; label = 'x2.0 Mult!'; }
     else if (catId === 'c33') {
-      if (Math.random() < 0.25) { mult = 4.0; label = 'x4 Mult!'; } else { return; }
+      if (botScoreRandom() < 0.25) { mult = 4.0; label = 'x4 Mult!'; } else { return; }
     }
     else if (catId === 'c34') {
       const minRank = Math.min(...botHandCards.map(c => c.rank));
@@ -579,7 +579,7 @@ export function runBotSequentialScoringSequence(scene: CardBattleScene): void {
     }
     else if (catId === 'c36' && hasStraight) { mult = 3.0; }
     else if (catId === 'c37' && isFinalHand) { mult = 3.0; }
-    else if (catId === 'c38') { mult = Math.floor(Math.random() * 21); label = `+${mult} Glitch!`; }
+    else if (catId === 'c38') { mult = Math.floor(botScoreRandom() * 21); label = `+${mult} Glitch!`; }
     else return;
 
     if (nips !== 0 || mult !== 0) {
@@ -772,10 +772,10 @@ export function runBotSequentialScoringSequence(scene: CardBattleScene): void {
           });
         });
 
-        const playedIds = scene.selectedCards.filter(c => c !== null).map(c => c!.id);
-        scene.playerHand = scene.playerHand.filter(hc => !playedIds.includes(hc.id));
+        const playedCards = new Set(scene.selectedCards.filter((card): card is Card => card !== null));
+        scene.playerHand = scene.playerHand.filter((card) => !playedCards.has(card));
 
-        const maxHandSize = 8 + (scene.getPlayerPlayCardLimit() - 5);
+        const maxHandSize = 8 + (scene.getPlayerPlayCardLimit() - BASE_PLAY_CARD_LIMIT);
         const needed = maxHandSize - scene.playerHand.length;
         if (needed > 0) scene.playerHand.push(...scene.drawCards(needed));
 
