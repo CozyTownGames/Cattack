@@ -7,7 +7,7 @@ export const scheduler = new Hono();
 scheduler.post('/daily-run-post', async (c) => {
   try {
     console.log('[scheduler] Running scheduled daily-run-post task...');
-    const post = await createPost();
+    const post = await createPost({ isDailyBooster: true });
     console.log(`[scheduler] Scheduled task complete. Daily run post: ${post.id}`);
     
     return c.json<TaskResponse>(

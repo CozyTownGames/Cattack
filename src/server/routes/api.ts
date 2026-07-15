@@ -241,16 +241,56 @@ api.get('/daily-booster', async (c) => {
     return c.json<DailyBoosterResponse>({ status: 'success', active: false, expired: availability.expired, claimed: false, choices: [] });
   }
   if (!playerId) return c.json<ErrorResponse>({ status: 'error', message: 'Signed-in player required' }, 401);
+
+  const username = context.username ?? await reddit.getCurrentUsername() ?? undefined;
+  let snoovatarUrl = context.snoovatar ?? undefined;
+  if (username && !snoovatarUrl) {
+    try {
+      const user = await reddit.getUserByUsername(username);
+      if (user) {
+        const url = await user.getSnoovatarUrl();
+        if (url) snoovatarUrl = url;
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  const joinedKey = `joined_subreddit:${playerId}`;
+  const isJoined = (await redis.get(joinedKey)) === 'true';
+
   const claimKey = `daily_booster_claim:${postId}:${playerId}`;
   const claimed = await redis.get(claimKey);
-  if (claimed) return c.json<DailyBoosterResponse>({ status: 'success', active: true, expired: false, claimed: true, choices: [] });
+  if (claimed) {
+    return c.json<DailyBoosterResponse>({
+      status: 'success',
+      active: true,
+      expired: false,
+      claimed: true,
+      choices: [],
+      username,
+      snoovatarUrl,
+      expiresAt: availability.expiresAt ?? undefined,
+      joined: isJoined,
+    });
+  }
   const choicesKey = `daily_booster_choices:${postId}:${playerId}`;
   const storedChoices = await redis.get(choicesKey);
   const choices: DailyBoosterReward[] = storedChoices ? JSON.parse(storedChoices) : createDailyBoosterChoices();
   if (!storedChoices && availability.expiresAt !== null) {
     await redis.set(choicesKey, JSON.stringify(choices), { expiration: new Date(availability.expiresAt) });
   }
-  return c.json<DailyBoosterResponse>({ status: 'success', active: true, expired: false, claimed: false, choices });
+  return c.json<DailyBoosterResponse>({
+    status: 'success',
+    active: true,
+    expired: false,
+    claimed: false,
+    choices,
+    username,
+    snoovatarUrl,
+    expiresAt: availability.expiresAt ?? undefined,
+    joined: isJoined,
+  });
 });
 
 api.post('/daily-booster/claim', async (c) => {
@@ -275,6 +315,24 @@ api.post('/daily-booster/claim', async (c) => {
   if (availability.expiresAt === null) return c.json<ErrorResponse>({ status: 'error', message: 'Daily booster expiration missing' }, 400);
   await redis.set(claimKey, JSON.stringify(reward), { expiration: new Date(availability.expiresAt) });
   return c.json({ status: 'success', reward });
+});
+
+api.post('/daily-booster/starter-complete', async (c) => {
+  const postId = context.postId;
+  const playerId = context.userId ?? await reddit.getCurrentUsername();
+  if (!postId || !playerId) {
+    return c.json<ErrorResponse>({ status: 'error', message: 'Daily booster unavailable' }, 400);
+  }
+
+  const availability = await getDailyBoosterAvailability(postId);
+  if (!availability.active || availability.expiresAt === null) {
+    return c.json({ status: 'success', replaced: false });
+  }
+
+  await redis.set(`daily_booster_claim:${postId}:${playerId}`, 'starter-pack', {
+    expiration: new Date(availability.expiresAt),
+  });
+  return c.json({ status: 'success', replaced: true });
 });
 
 api.get('/player-profile', async (c) => {
@@ -508,6 +566,47 @@ api.post('/publish-card-battle', async (c) => {
     console.error('Failed to publish card battle:', error);
     return c.json<ErrorResponse>({ status: 'error', message: 'Failed to publish battle' }, 500);
   }
+});
+
+api.post('/post-comment', async (c) => {
+  const { postId } = context;
+  if (!postId) {
+    return c.json<ErrorResponse>({ status: 'error', message: 'postId is required' }, 400);
+  }
+
+  const payload: unknown = await c.req.json();
+  if (!isRecord(payload) || typeof payload.text !== 'string') {
+    return c.json<ErrorResponse>({ status: 'error', message: 'Invalid comment text' }, 400);
+  }
+
+  try {
+    const formattedId: `t3_${string}` = postId.startsWith('t3_')
+      ? `t3_${postId.slice(3)}`
+      : `t3_${postId}`;
+
+    const comment = await reddit.submitComment({
+      id: formattedId,
+      text: payload.text,
+    });
+    return c.json({ status: 'success', commentId: comment.id });
+  } catch (error) {
+    console.error('Failed to submit comment:', error);
+    return c.json<ErrorResponse>({ status: 'error', message: 'Failed to submit comment' }, 500);
+  }
+});
+
+api.post('/subscribe', async (c) => {
+  const playerId = context.userId ?? await reddit.getCurrentUsername();
+  if (!playerId) {
+    return c.json<ErrorResponse>({ status: 'error', message: 'Signed-in player required' }, 401);
+  }
+  try {
+    await reddit.subscribeToCurrentSubreddit();
+  } catch (error) {
+    console.error('Failed to subscribe:', error);
+  }
+  await redis.set(`joined_subreddit:${playerId}`, 'true');
+  return c.json({ status: 'success' });
 });
 
 api.post('/increment', async (c) => {

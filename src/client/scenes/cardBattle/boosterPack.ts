@@ -3,6 +3,7 @@ import { Card, CardSuit, makeCard } from './cardRules';
 import { COMPANION_CATS, CompanionCatId } from './companionCats';
 import { reportPlayerProgress } from '../../playerProgress';
 import { isSoundMuted } from '../../soundSettings';
+import { showExpandCardOverlay } from './cardOverlays';
 
 export interface BoosterScene extends Phaser.Scene {
   playerDeck: Card[];
@@ -903,21 +904,7 @@ export function showBoosterPackOpening(scene: BoosterScene): void {
       cardZone.on('pointerdown', () => {
         const catData = COMPANION_CATS[catId];
         if (revealed) {
-          infoName.setText(catData.name.toUpperCase());
-          infoDescription.setText(catData.description);
-          infoPanel.setAlpha(1).setScale(0.96);
-          scene.tweens.add({
-            targets: infoPanel,
-            scale: 1,
-            duration: 170,
-            ease: 'Back.easeOut',
-          });
-          scene.tweens.add({
-            targets: card,
-            scale: cardScale * 1.06,
-            yoyo: true,
-            duration: 90,
-          });
+          showExpandCardOverlay(scene, { catId });
           return;
         }
         if (revealing) return;

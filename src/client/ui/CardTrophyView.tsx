@@ -18,6 +18,7 @@ type DeckCard = {
   rank: number;
 };
 type DeckUpgrade = { holographic: boolean; seals: string[] };
+type SelectedDeckCard = { card: DeckCard; upgrade: DeckUpgrade };
 
 const DECK_SUITS: DeckCard['suit'][] = ['water', 'leaf', 'sakura', 'ghost'];
 const DECK_CARDS: DeckCard[] = DECK_SUITS.flatMap((suit) =>
@@ -130,6 +131,7 @@ export function CardTrophyView({ onClose }: CardTrophyViewProps) {
   const [holographicDeck] = useState(() => new Set(readStringList('player_holographic_deck_cards')));
   const [deckUpgrades] = useState(readDeckUpgrades);
   const [selectedCat, setSelectedCat] = useState<CompanionCat | null>(null);
+  const [selectedDeckCard, setSelectedDeckCard] = useState<SelectedDeckCard | null>(null);
   const [view, setView] = useState<'cat' | 'deck'>('cat');
   const [page, setPage] = useState(0);
   const cats = Object.values(COMPANION_CATS);
@@ -198,16 +200,24 @@ export function CardTrophyView({ onClose }: CardTrophyViewProps) {
           );
         })}
         {view === 'deck' && visibleDeckCards.map((card) => {
+          const key = `${card.suit}-${card.rank}`;
+          const upgrade = deckUpgrades.get(key) ?? { holographic: false, seals: [] };
+          const isHolo = holographicDeck.has(key) || upgrade.holographic;
           const rankName = card.rank === 11 ? 'Tabby' : card.rank === 12 ? 'Orange' : card.rank === 13 ? 'White' : card.rank === 14 ? 'Void' : String(card.rank);
           return (
-            <div key={`${card.suit}-${card.rank}`} className="trophy-card-slot" style={{ ...styles.cardButton, borderColor: '#eab308' }}>
+            <button
+              key={key}
+              className="trophy-card-slot"
+              style={{ ...styles.cardButton, borderColor: upgrade.seals.length > 0 ? '#ff00ff' : isHolo ? '#00ffee' : '#eab308', cursor: 'pointer' }}
+              onClick={() => setSelectedDeckCard({ card, upgrade: { ...upgrade, holographic: isHolo } })}
+            >
               <DeckCardSprite
                 card={card}
-                holographic={holographicDeck.has(`${card.suit}-${card.rank}`) || (deckUpgrades.get(`${card.suit}-${card.rank}`)?.holographic ?? false)}
-                seals={deckUpgrades.get(`${card.suit}-${card.rank}`)?.seals ?? []}
+                holographic={isHolo}
+                seals={upgrade.seals}
               />
               <span style={{ ...styles.cardName, color: '#fde68a' }}>{card.suit.toUpperCase()} {rankName}</span>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -228,6 +238,44 @@ export function CardTrophyView({ onClose }: CardTrophyViewProps) {
           </div>
         </div>
       )}
+
+      {selectedDeckCard && (() => {
+        const { card, upgrade } = selectedDeckCard;
+        const rankName = card.rank === 11 ? 'Tabby' : card.rank === 12 ? 'Orange' : card.rank === 13 ? 'White' : card.rank === 14 ? 'Void' : String(card.rank);
+        const SEAL_PERKS: Record<string, { label: string; color: string; desc: string }> = {
+          gold:   { label: 'Gold Seal',   color: '#f59e0b', desc: '+10 Gold coins on trigger' },
+          red:    { label: 'Red Seal',    color: '#f43f5e', desc: '+4 Mult when this card scores' },
+          purple: { label: 'Purple Seal', color: '#a855f7', desc: '+20 Nips added to base value' },
+        };
+        return (
+          <div style={styles.detailBackdrop} onClick={() => setSelectedDeckCard(null)}>
+            <div style={styles.detail} className="trophy-detail-panel" onClick={(event) => event.stopPropagation()}>
+              <DeckCardSprite card={card} holographic={upgrade.holographic} seals={upgrade.seals} maxWidth={100} />
+              <div style={styles.detailName}>{card.suit.toUpperCase()} {rankName.toUpperCase()}</div>
+              {upgrade.holographic && (
+                <div style={{ color: '#00ffee', fontSize: 11, fontWeight: 'bold', letterSpacing: 1 }}>✦ HOLOGRAPHIC</div>
+              )}
+              {upgrade.seals.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+                  {upgrade.seals.map((seal) => {
+                    const perk = SEAL_PERKS[seal];
+                    if (!perk) return null;
+                    return (
+                      <div key={seal} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, padding: '5px 8px', border: `1.5px solid ${perk.color}`, background: 'rgba(0,0,0,0.4)' }}>
+                        <span style={{ color: perk.color, fontSize: 11, fontWeight: 'bold' }}>{perk.label}</span>
+                        <span style={{ color: '#e2e8f0', fontSize: 10, textAlign: 'center' }}>{perk.desc}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ color: '#475569', fontSize: 10, fontStyle: 'italic' }}>No seals applied</div>
+              )}
+              <button className="trophy-control" style={styles.detailClose} onClick={() => setSelectedDeckCard(null)}>CLOSE</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

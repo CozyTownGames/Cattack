@@ -8,7 +8,6 @@
     "dir": "dist/client",
     "entrypoints": {
       "default": {
-        "inline": true,
         "entry": "splash.html"
       },
       "game": {
@@ -23,7 +22,7 @@
   "permissions": {
     "reddit": {
       "scope": "moderator",
-      "asUser": ["SUBMIT_POST"]
+      "asUser": ["SUBMIT_POST", "SUBSCRIBE_TO_SUBREDDIT"]
     }
   },
   "menu": {
@@ -34,6 +33,13 @@
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/post-create"
+      },
+      {
+        "label": "Post Booster Pack",
+        "description": "Force post the daily booster pack scene",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/post-booster-pack"
       },
       {
         "label": "Example form",

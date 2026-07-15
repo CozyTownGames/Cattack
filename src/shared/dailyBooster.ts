@@ -10,4 +10,8 @@ export type DailyBoosterResponse = {
   expired: boolean;
   claimed: boolean;
   choices: DailyBoosterReward[];
+  username?: string;
+  snoovatarUrl?: string;
+  expiresAt?: number;
+  joined?: boolean;
 };

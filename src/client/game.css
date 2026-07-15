@@ -270,15 +270,15 @@ button,
   }
 
   .splash-world-button {
-    width: 112px !important;
+    width: 104px !important;
   }
 
   .splash-world-button:not(#splash-battle-btn) {
-    width: min(104px, 24vh) !important;
+    width: min(96px, 22vh) !important;
   }
 
   .splash-world-label {
-    font-size: 22px !important;
+    font-size: 20px !important;
   }
 
   .leaderboard-close {
@@ -299,12 +299,12 @@ button,
   }
 
   #trophy-case-btn {
-    bottom: 22% !important;
+    bottom: 25% !important;
     left: 10% !important;
   }
 
   #global-leaderboard-btn {
-    bottom: 22% !important;
+    bottom: 25% !important;
     right: 10% !important;
   }
 

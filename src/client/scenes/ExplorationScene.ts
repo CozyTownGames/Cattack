@@ -118,6 +118,7 @@ export class ExplorationScene extends Phaser.Scene {
   init(data?: { mapId?: ExpeditionMapId }): void {
     this.mapId = data?.mapId ?? gameStore.expeditionMap ?? 'arcade';
     gameStore.expeditionMap = this.mapId;
+    gameStore.health = MAX_HEARTS * HEART_HEALTH;
     gameStore.expeditionHaul = {
       invaderKills: 0,
       xp: 0,
@@ -676,9 +677,11 @@ export class ExplorationScene extends Phaser.Scene {
     if (marker instanceof Phaser.Physics.Arcade.Sprite) marker.destroy();
     if (result.won) {
       gameStore.expeditionHaul.xp += 25;
+      gameStore.expeditionHaul.gold += 50;
       if (result.reward?.kind === 'cat') gameStore.expeditionHaul.cats.push(result.reward.catId);
       if (result.reward?.kind === 'standard') gameStore.expeditionHaul.cards.push(result.reward.card);
-      emitIntelToast('Battle won: +25 XP and 1 card');
+      emitExpeditionGoldChanged(gameStore.expeditionHaul.gold);
+      emitIntelToast('Battle won: +25 XP, +50 Gold and 1 card');
     } else {
       gameStore.health = Math.max(0, gameStore.health - HEART_HEALTH);
       this.showPlayerDamageFeedback();
@@ -1111,8 +1114,10 @@ export class ExplorationScene extends Phaser.Scene {
         this.player.setVelocity(0);
       } else {
         const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, target.x, target.y);
-        if (distance < 4) {
-          this.player.setPosition(target.x, target.y);
+        if (distance < 6) {
+          if (this.movementPath.length === 1) {
+            this.player.setPosition(target.x, target.y);
+          }
           this.movementPath.shift();
         }
         const nextTarget = this.movementPath[0];

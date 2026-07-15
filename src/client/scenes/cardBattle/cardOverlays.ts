@@ -4,6 +4,8 @@ import { Card, ensureCard, makeCard } from './cardRules';
 import { COMPANION_CATS, CompanionCatId } from './companionCats';
 import { getCatCardFrame } from './catCardFrames';
 import { reportPlayerProgress } from '../../playerProgress';
+import { createCardSprite } from './cardGraphics';
+import type { DailyBoosterReward } from '../../../shared/dailyBooster';
 
 // ─── Card Detail Overlay (long-press) ───────────────────────────────────────
 export function showCardDetailOverlay(scene: CardBattleScene, card: Card): void {
@@ -881,6 +883,26 @@ export function showOpponentPrizeSelection(
           duration: 140,
         }));
         claimButton.setAlpha(1).setInteractive({ useHandCursor: true });
+
+        if (prize.kind === 'cat') {
+          showExpandCardOverlay(scene, {
+            catId: prize.catId,
+            onClaim: () => {
+              claimButton.disableInteractive();
+              onClaim(prize);
+              scene.tweens.add({ targets: overlay, alpha: 0, duration: 250, onComplete: () => overlay.destroy(true) });
+            }
+          });
+        } else {
+          showExpandCardOverlay(scene, {
+            card: prize.card,
+            onClaim: () => {
+              claimButton.disableInteractive();
+              onClaim(prize);
+              scene.tweens.add({ targets: overlay, alpha: 0, duration: 250, onComplete: () => overlay.destroy(true) });
+            }
+          });
+        }
       });
       panel.add(card);
       sprites.push(card);
@@ -914,3 +936,373 @@ export function showOpponentPrizeSelection(
     onComplete: reveal,
   });
 }
+
+export function showExpandCardOverlay(
+  scene: Phaser.Scene,
+  options: {
+    catId?: CompanionCatId;
+    card?: Card;
+    isHolographic?: boolean;
+    onClose?: () => void;
+    choices?: DailyBoosterReward[];
+    currentIndex?: number;
+    onChange?: (newIndex: number) => void;
+    onClaim?: (index: number) => void;
+  }
+): void {
+  const { width, height } = scene.scale;
+  
+  const overlay = scene.add.container(width / 2, height / 2).setDepth(1000);
+  
+  const blocker = scene.add.rectangle(0, 0, width, height, 0x000000, 0.75).setOrigin(0.5);
+  blocker.setInteractive(new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height), Phaser.Geom.Rectangle.Contains);
+  overlay.add(blocker);
+  
+  const panelWidth = 290;
+  const panelHeight = 450;
+  
+  const neonContainer = scene.add.container(0, 0);
+  overlay.add(neonContainer);
+  
+  neonContainer.add(scene.add.rectangle(-6, -6, panelWidth, panelHeight, 0x080b1c, 0).setStrokeStyle(4, 0xffbb00));
+  neonContainer.add(scene.add.rectangle(6, 6, panelWidth, panelHeight, 0x080b1c, 0).setStrokeStyle(4, 0xff00ff));
+  neonContainer.add(scene.add.rectangle(0, 0, panelWidth, panelHeight, 0x080b1c, 0.98).setStrokeStyle(4, 0x00ffee));
+  
+  const contentContainer = scene.add.container(0, 0);
+  neonContainer.add(contentContainer);
+  
+  let currentIdx = options.currentIndex ?? 0;
+  
+  const rebuildContent = () => {
+    contentContainer.removeAll(true);
+    
+    let activeCatId: CompanionCatId | undefined = undefined;
+    let activeCard: Card | undefined = undefined;
+    let activeIsHolo = false;
+    
+    if (options.choices && options.choices.length > 0) {
+      const reward = options.choices[currentIdx];
+      if (reward) {
+        if (reward.kind === 'cat' || reward.kind === 'holoCat') {
+          activeCatId = reward.catId as CompanionCatId;
+          activeIsHolo = reward.kind === 'holoCat';
+        } else if (reward.kind === 'holoDeck') {
+          activeCard = makeCard(reward.suit, reward.rank, true, []);
+          activeIsHolo = true;
+        } else if (reward.kind === 'sealedDeck') {
+          activeCard = makeCard(reward.suit, reward.rank, false, [reward.seal]);
+          activeIsHolo = false;
+        }
+      }
+    } else {
+      activeCatId = options.catId;
+      activeCard = options.card;
+      activeIsHolo = options.isHolographic ?? false;
+    }
+    
+    let cardName = '';
+    let cardDesc = '';
+    let ownedCount = 0;
+    const cardScale = 2.3;
+    
+    if (activeCatId) {
+      const cat = COMPANION_CATS[activeCatId];
+      if (cat) {
+        cardName = cat.name;
+        cardDesc = cat.description;
+        
+        try {
+          const raw = JSON.parse(localStorage.getItem('player_owned_companion_cats') ?? '[]');
+          const ownedCats = Array.isArray(raw) ? raw : [];
+          ownedCount = ownedCats.filter((id) => id === activeCatId).length;
+        } catch (e) {
+          console.error(e);
+        }
+        
+        const frame = getCatCardFrame(activeCatId);
+        const catSprite = scene.add.sprite(0, -70, frame.sheet, frame.frame);
+        catSprite.setScale(cardScale);
+        contentContainer.add(catSprite);
+        
+        if (activeIsHolo && scene.textures.exists('daily_holo_frames')) {
+          const holo = scene.add.sprite(0, -70, 'daily_holo_frames', 0)
+            .setScale(cardScale)
+            .setAlpha(0.72)
+            .setBlendMode(Phaser.BlendModes.ADD);
+          if (scene.anims && scene.anims.exists('daily_holo_shimmer')) {
+            holo.play('daily_holo_shimmer');
+          }
+          contentContainer.add(holo);
+        }
+      }
+    } else if (activeCard) {
+      cardName = activeCard.name;
+      
+      const RANK_NAMES: Record<number, string> = { 11: 'Tabby', 12: 'Orange', 13: 'White', 14: 'Void' };
+      const suitLabel = activeCard.suit.charAt(0).toUpperCase() + activeCard.suit.slice(1);
+      const rankLabel = RANK_NAMES[activeCard.rank] ?? activeCard.rank.toString();
+      
+      const lines: string[] = [];
+      if (activeCard.holographic) {
+        lines.push('HOLOGRAPHIC');
+      }
+      lines.push(`${suitLabel} Card ${rankLabel}`);
+      lines.push(`Value ${activeCard.base_nips}`);
+      if (activeCard.holographic) {
+        lines.push('HOLO +4 MULT');
+      }
+      if (activeCard.seals && activeCard.seals.length > 0) {
+        activeCard.seals.forEach(seal => {
+          if (seal === 'gold') lines.push('GOLD SEAL (x3 Gold)');
+          if (seal === 'red') lines.push('RED SEAL (+4 Mult)');
+          if (seal === 'purple') lines.push('PURPLE SEAL (+20 Nips)');
+        });
+      }
+      cardDesc = lines.join('\n');
+      
+      try {
+        const raw = JSON.parse(localStorage.getItem('player_card_deck') ?? '[]');
+        const deck = Array.isArray(raw) ? raw : [];
+        ownedCount = deck.filter((c: any) => c && (c.suit === activeCard!.suit) && (c.rank === activeCard!.rank)).length;
+      } catch (e) {
+        console.error(e);
+      }
+      
+      const cardSprite = createCardSprite(scene, 0, -70, activeCard, false);
+      cardSprite.setScale(cardScale);
+      contentContainer.add(cardSprite);
+      
+      if (activeIsHolo && scene.textures.exists('daily_holo_frames')) {
+        const holo = scene.add.sprite(0, -70, 'daily_holo_frames', 0)
+          .setScale(cardScale)
+          .setAlpha(0.72)
+          .setBlendMode(Phaser.BlendModes.ADD);
+        if (scene.anims && scene.anims.exists('daily_holo_shimmer')) {
+          holo.play('daily_holo_shimmer');
+        }
+        contentContainer.add(holo);
+      }
+    }
+    
+    const nameText = scene.add.text(0, 75, cardName.toUpperCase(), {
+      fontFamily: 'monospace',
+      fontSize: '16px',
+      color: '#ffff00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+    contentContainer.add(nameText);
+    
+    const descText = scene.add.text(0, 120, cardDesc, {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#ffffff',
+      align: 'center',
+      wordWrap: { width: panelWidth - 40 },
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5);
+    contentContainer.add(descText);
+    
+    const ownedText = scene.add.text(0, 162, `OWNED: ${ownedCount}`, {
+      fontFamily: 'monospace',
+      fontSize: '10px',
+      color: '#00ffee',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5);
+    contentContainer.add(ownedText);
+  };
+  
+  rebuildContent();
+  
+  // X to close at the top corner
+  const closeXBtn = scene.add.container(panelWidth / 2 - 16, -panelHeight / 2 + 16);
+  const closeXBg = scene.add.graphics();
+  closeXBg.fillStyle(0x080b1c, 1);
+  closeXBg.lineStyle(2, 0xff00ff, 1);
+  closeXBg.strokeCircle(0, 0, 12);
+  closeXBg.fillCircle(0, 0, 12);
+  closeXBtn.add(closeXBg);
+  
+  const closeXText = scene.add.text(0, 0, 'X', {
+    fontFamily: 'monospace',
+    fontSize: '12px',
+    color: '#ffffff',
+    fontStyle: 'bold',
+  }).setOrigin(0.5);
+  closeXBtn.add(closeXText);
+  
+  closeXBtn.setInteractive(new Phaser.Geom.Circle(0, 0, 12), Phaser.Geom.Circle.Contains);
+  closeXBtn.on('pointerover', () => {
+    closeXBg.clear();
+    closeXBg.fillStyle(0x171b30, 1);
+    closeXBg.lineStyle(2, 0xffbb00, 1);
+    closeXBg.strokeCircle(0, 0, 12);
+    closeXBg.fillCircle(0, 0, 12);
+    closeXText.setColor('#ffbb00');
+  });
+  closeXBtn.on('pointerout', () => {
+    closeXBg.clear();
+    closeXBg.fillStyle(0x080b1c, 1);
+    closeXBg.lineStyle(2, 0xff00ff, 1);
+    closeXBg.strokeCircle(0, 0, 12);
+    closeXBg.fillCircle(0, 0, 12);
+    closeXText.setColor('#ffffff');
+  });
+  closeXBtn.on('pointerdown', () => {
+    overlay.destroy();
+    if (options.onClose) {
+      options.onClose();
+    }
+  });
+  neonContainer.add(closeXBtn);
+  
+  // Next/Prev arrows
+  if (options.choices && options.choices.length > 1) {
+    // Left Arrow
+    const leftArrow = scene.add.container(-panelWidth / 2 - 28, 0);
+    const leftBg = scene.add.graphics();
+    leftBg.fillStyle(0x080b1c, 1);
+    leftBg.lineStyle(2, 0x00ffee, 1);
+    leftBg.strokeCircle(0, 0, 18);
+    leftBg.fillCircle(0, 0, 18);
+    leftArrow.add(leftBg);
+    
+    const leftText = scene.add.text(0, 0, '<', {
+      fontFamily: 'monospace',
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    leftArrow.add(leftText);
+    
+    leftArrow.setInteractive(new Phaser.Geom.Circle(0, 0, 18), Phaser.Geom.Circle.Contains);
+    leftArrow.on('pointerover', () => {
+      leftBg.clear();
+      leftBg.fillStyle(0x171b30, 1);
+      leftBg.lineStyle(2, 0xffbb00, 1);
+      leftBg.strokeCircle(0, 0, 18);
+      leftBg.fillCircle(0, 0, 18);
+      leftText.setColor('#ffbb00');
+    });
+    leftArrow.on('pointerout', () => {
+      leftBg.clear();
+      leftBg.fillStyle(0x080b1c, 1);
+      leftBg.lineStyle(2, 0x00ffee, 1);
+      leftBg.strokeCircle(0, 0, 18);
+      leftBg.fillCircle(0, 0, 18);
+      leftText.setColor('#ffffff');
+    });
+    leftArrow.on('pointerdown', () => {
+      currentIdx = (currentIdx - 1 + options.choices!.length) % options.choices!.length;
+      rebuildContent();
+      if (options.onChange) {
+        options.onChange(currentIdx);
+      }
+    });
+    overlay.add(leftArrow);
+    
+    // Right Arrow
+    const rightArrow = scene.add.container(panelWidth / 2 + 28, 0);
+    const rightBg = scene.add.graphics();
+    rightBg.fillStyle(0x080b1c, 1);
+    rightBg.lineStyle(2, 0x00ffee, 1);
+    rightBg.strokeCircle(0, 0, 18);
+    rightBg.fillCircle(0, 0, 18);
+    rightArrow.add(rightBg);
+    
+    const rightText = scene.add.text(0, 0, '>', {
+      fontFamily: 'monospace',
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    rightArrow.add(rightText);
+    
+    rightArrow.setInteractive(new Phaser.Geom.Circle(0, 0, 18), Phaser.Geom.Circle.Contains);
+    rightArrow.on('pointerover', () => {
+      rightBg.clear();
+      rightBg.fillStyle(0x171b30, 1);
+      rightBg.lineStyle(2, 0xffbb00, 1);
+      rightBg.strokeCircle(0, 0, 18);
+      rightBg.fillCircle(0, 0, 18);
+      rightText.setColor('#ffbb00');
+    });
+    rightArrow.on('pointerout', () => {
+      rightBg.clear();
+      rightBg.fillStyle(0x080b1c, 1);
+      rightBg.lineStyle(2, 0x00ffee, 1);
+      rightBg.strokeCircle(0, 0, 18);
+      rightBg.fillCircle(0, 0, 18);
+      rightText.setColor('#ffffff');
+    });
+    rightArrow.on('pointerdown', () => {
+      currentIdx = (currentIdx + 1) % options.choices!.length;
+      rebuildContent();
+      if (options.onChange) {
+        options.onChange(currentIdx);
+      }
+    });
+    overlay.add(rightArrow);
+  }
+  
+  // Bottom Button (Claim Card or Close)
+  const bottomBtn = scene.add.container(0, 202);
+  const btnLabel = options.onClaim ? 'CLAIM CARD' : 'CLOSE';
+  const btnWidth = options.onClaim ? 120 : 100;
+  
+  const btnBg = scene.add.graphics();
+  btnBg.fillStyle(0x080b1c, 1);
+  btnBg.lineStyle(2, options.onClaim ? 0xff00ff : 0xffffff, 1);
+  btnBg.strokeRect(-btnWidth / 2, -16, btnWidth, 32);
+  btnBg.fillRect(-btnWidth / 2, -16, btnWidth, 32);
+  bottomBtn.add(btnBg);
+  
+  const btnText = scene.add.text(0, 0, btnLabel, {
+    fontFamily: 'monospace',
+    fontSize: '12px',
+    color: '#ffffff',
+    fontStyle: 'bold',
+  }).setOrigin(0.5);
+  bottomBtn.add(btnText);
+  
+  bottomBtn.setInteractive(new Phaser.Geom.Rectangle(-btnWidth / 2, -16, btnWidth, 32), Phaser.Geom.Rectangle.Contains);
+  bottomBtn.on('pointerover', () => {
+    btnBg.clear();
+    btnBg.fillStyle(0x171b30, 1);
+    btnBg.lineStyle(2, 0xffbb00, 1);
+    btnBg.strokeRect(-btnWidth / 2, -16, btnWidth, 32);
+    btnBg.fillRect(-btnWidth / 2, -16, btnWidth, 32);
+    btnText.setColor('#ffbb00');
+  });
+  bottomBtn.on('pointerout', () => {
+    btnBg.clear();
+    btnBg.fillStyle(0x080b1c, 1);
+    btnBg.lineStyle(2, options.onClaim ? 0xff00ff : 0xffffff, 1);
+    btnBg.strokeRect(-btnWidth / 2, -16, btnWidth, 32);
+    btnBg.fillRect(-btnWidth / 2, -16, btnWidth, 32);
+    btnText.setColor('#ffffff');
+  });
+  
+  bottomBtn.on('pointerdown', () => {
+    overlay.destroy();
+    if (options.onClaim) {
+      options.onClaim(currentIdx);
+    } else if (options.onClose) {
+      options.onClose();
+    }
+  });
+  neonContainer.add(bottomBtn);
+  
+  overlay.setScale(0);
+  scene.tweens.add({
+    targets: overlay,
+    scale: 1,
+    duration: 200,
+    ease: 'Back.easeOut',
+  });
+}
+

@@ -93,9 +93,10 @@ function SplashApp() {
   useEffect(() => onDailyBoosterFinished(() => setInlineMode('splash')), []);
   useEffect(() => onStarterPackOpened(() => {
     setShowStarterPack(false);
-    const nextMode = deferredInlineMode.current;
     deferredInlineMode.current = null;
-    if (nextMode) setInlineMode(nextMode);
+    gameStore.pendingVsBattleIntro = null;
+    gameStore.startFreshCardBattle = true;
+    setInlineMode('battle');
   }), []);
   useEffect(() => onCrtEnabledChanged(setCrtEnabled), []);
 

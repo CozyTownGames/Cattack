@@ -121,6 +121,10 @@ export class StarterBoosterScene extends Phaser.Scene {
   }
 
   public fetchChallengerAndStart(): void {
+    void fetch('/api/daily-booster/starter-complete', {
+      method: 'POST',
+      keepalive: true,
+    }).catch((error) => console.error('Failed to mark daily booster as replaced by starter pack', error));
     emitStarterPackOpened();
   }
 

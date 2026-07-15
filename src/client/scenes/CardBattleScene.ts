@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { showForm } from '@devvit/web/client';
-import { emitSceneChanged } from '../eventBus';
-import { getPlayerProgress, reportPlayerProgress } from '../playerProgress';
+import { emitSceneChanged, emitIntelToast } from '../eventBus';
+import { getPlayerProgress, reportPlayerProgress, changePlayerGold } from '../playerProgress';
 import { isSoundMuted } from '../soundSettings';
 import {
   Card,
@@ -1240,7 +1240,7 @@ export class CardBattleScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '18px', color: '#ffff00', fontStyle: 'bold',
     }).setOrigin(0.5).setAlpha(0);
     const tapText = this.add.text(0, 62, 'TAP ANYWHERE  ▶', {
-      fontFamily: 'monospace', fontSize: '9px', color: '#00ffee',
+      fontFamily: 'monospace', fontSize: '12px', color: '#00ffee', fontStyle: 'bold',
     }).setOrigin(0.5);
     panel.add([panelBackground, beforeText, afterText, magentaWord, yellowWord, tapText]);
     overlay.add(panel);
@@ -1878,6 +1878,9 @@ export class CardBattleScene extends Phaser.Scene {
     // No-op for compilation flag
 
     // Display banner
+    const bannerHeight = playerWon ? 220 : 300;
+    const bannerHalfHeight = bannerHeight / 2;
+
     this.resultBanner = this.add
       .container(this.scale.width / 2, this.scale.height / 2 - 20)
       .setScale(0);
@@ -1885,19 +1888,19 @@ export class CardBattleScene extends Phaser.Scene {
 
     const borderShadow = this.add.graphics();
     borderShadow.lineStyle(4, 0xffbb00, 1);
-    borderShadow.strokeRect(-226, -116, 440, 220);
+    borderShadow.strokeRect(-226, -bannerHalfHeight - 6, 440, bannerHeight);
     borderShadow.lineStyle(4, 0xff00ff, 1);
-    borderShadow.strokeRect(-214, -104, 440, 220);
+    borderShadow.strokeRect(-214, -bannerHalfHeight + 6, 440, bannerHeight);
     this.resultBanner.add(borderShadow);
     const bannerBg = this.add.graphics();
     bannerBg.fillStyle(0x080c18, 0.99);
     bannerBg.lineStyle(4, playerWon ? 0x00ffee : 0xff0055, 1.0);
-    bannerBg.fillRect(-220, -110, 440, 220);
-    bannerBg.strokeRect(-220, -110, 440, 220);
+    bannerBg.fillRect(-220, -bannerHalfHeight, 440, bannerHeight);
+    bannerBg.strokeRect(-220, -bannerHalfHeight, 440, bannerHeight);
     this.resultBanner.add(bannerBg);
 
     const titleText = this.add
-      .text(0, -67, playerWon ? 'PURR-FECT VICTORY!' : 'CAT-ASTROPHIC DEFEAT!', {
+      .text(0, playerWon ? -67 : -110, playerWon ? 'PURR-FECT VICTORY!' : 'CAT-ASTROPHIC DEFEAT!', {
         fontFamily: 'monospace',
         fontSize: '25px',
         color: playerWon ? '#00ffee' : '#ff3333',
@@ -1926,7 +1929,7 @@ export class CardBattleScene extends Phaser.Scene {
 
     const narratorText = this.add.text(
       0,
-      -38,
+      playerWon ? -38 : -75,
       playerWon
         ? 'YOU OUT-SCORED THE BADDIE! CLAW-SOME! ~MEOW'
         : 'THE BADDIE GOT MORE NIPS... ABSOLUTE HISSS-TERY!',
@@ -1937,37 +1940,143 @@ export class CardBattleScene extends Phaser.Scene {
     ).setOrigin(0.5);
     this.resultBanner.add(narratorText);
 
-    const scoreDetails = this.add
-      .text(
-        0,
-        -5,
-        `YOUR NIPS: ${this.playerCumulativeScore.toLocaleString()}\nBADDIE NIPS: ${this.opponentCumulativeScore.toLocaleString()}`,
-        {
-          fontFamily: 'monospace',
-          fontSize: '16px',
-          color: '#ffffff',
-          align: 'center',
-        }
-      )
-      .setOrigin(0.5);
-    this.resultBanner.add(scoreDetails);
+    if (playerWon) {
+      const scoreDetails = this.add
+        .text(
+          0,
+          -5,
+          `YOUR NIPS: ${this.playerCumulativeScore.toLocaleString()}\nBADDIE NIPS: ${this.opponentCumulativeScore.toLocaleString()}`,
+          {
+            fontFamily: 'monospace',
+            fontSize: '16px',
+            color: '#ffffff',
+            align: 'center',
+          }
+        )
+        .setOrigin(0.5);
+      this.resultBanner.add(scoreDetails);
+    } else {
+      // Create Mock Form/Input
+      const mockInput = this.add.container(0, -25);
+      const inputBg = this.add.graphics();
+      inputBg.fillStyle(0x0e172a, 1);
+      inputBg.lineStyle(2, 0x475569, 1);
+      inputBg.fillRoundedRect(-160, -18, 320, 36, 4);
+      inputBg.strokeRoundedRect(-160, -18, 320, 36, 4);
+      mockInput.add(inputBg);
 
-    this.tweens.add({
-      targets: this.resultBanner,
-      scale: 1.0,
-      duration: 400,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        if (playerWon) {
-          showOpponentPrizeSelection(this, (prize) => this.claimBattlePrize(prize));
-        } else if (this.wildOpponent) {
-          this.returnToExploration(false, null);
-        } else {
-          // Show "OK/TRY AGAIN" button
-          this.showDefeatRetryButton();
+      const inputText = this.add.text(-145, 0, 'OP IS A...', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#94a3b8',
+      }).setOrigin(0, 0.5);
+      mockInput.add(inputText);
+
+      mockInput.setInteractive(new Phaser.Geom.Rectangle(-160, -18, 320, 36), Phaser.Geom.Rectangle.Contains);
+      this.resultBanner.add(mockInput);
+
+      // Create Smack Talk Button
+      const smackTalkBtn = this.add.container(0, 25);
+      const smackTalkShadow = this.add.graphics();
+      smackTalkShadow.fillStyle(0xf43f5e, 1);
+      smackTalkShadow.fillRect(-87, -13, 180, 32);
+      const smackTalkBg = this.add.graphics();
+      smackTalkBg.fillStyle(0x9d174d, 1);
+      smackTalkBg.lineStyle(2, 0xffffff, 1);
+      smackTalkBg.fillRect(-90, -16, 180, 32);
+      smackTalkBg.strokeRect(-90, -16, 180, 32);
+      smackTalkBtn.add([smackTalkShadow, smackTalkBg]);
+
+      const smackTalkText = this.add.text(0, 0, 'SMACK TALK!!!!', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      }).setOrigin(0.5);
+      smackTalkBtn.add(smackTalkText);
+
+      smackTalkBtn.setInteractive(new Phaser.Geom.Rectangle(-90, -16, 180, 32), Phaser.Geom.Rectangle.Contains);
+      this.resultBanner.add(smackTalkBtn);
+
+      // Create Helper warning text under button (magenta)
+      const postCommentWarning = this.add.text(0, 55, 'it will post your comment', {
+        fontFamily: 'monospace',
+        fontSize: '10px',
+        color: '#f43f5e',
+      }).setOrigin(0.5);
+      this.resultBanner.add(postCommentWarning);
+
+      // Setup click handlers
+      const openSmackTalkForm = async () => {
+        try {
+          const result = await showForm({
+            title: 'SMACK TALK!!!!',
+            description: 'Post your comment to this thread',
+            acceptLabel: 'POST COMMENT',
+            cancelLabel: 'CANCEL',
+            fields: [
+              {
+                type: 'string',
+                name: 'commentText',
+                label: 'Your comment',
+                defaultValue: 'OP IS A ',
+                required: true,
+              }
+            ]
+          });
+
+          if (result.action === 'CANCELED') return;
+
+          const commentText = result.values.commentText.trim();
+          if (!commentText) return;
+
+          // Disable buttons temporarily
+          smackTalkBtn.disableInteractive();
+          mockInput.disableInteractive();
+
+          const response = await fetch('/api/post-comment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: commentText }),
+          });
+
+          if (response.ok) {
+            this.showFloatingText(this.scale.width / 2, this.scale.height / 2 - 120, 'Comment posted!', '#00ff00');
+          } else {
+            this.showFloatingText(this.scale.width / 2, this.scale.height / 2 - 120, 'Failed to post comment', '#ff0000');
+          }
+
+          // Re-enable
+          smackTalkBtn.setInteractive();
+          mockInput.setInteractive();
+        } catch (err) {
+          console.error(err);
         }
-      },
-    });
+      };
+
+      mockInput.on('pointerdown', openSmackTalkForm);
+      smackTalkBtn.on('pointerdown', openSmackTalkForm);
+    }
+
+    if (playerWon) {
+      if (this.resultBanner) this.resultBanner.setVisible(false);
+      showOpponentPrizeSelection(this, (prize) => this.claimBattlePrize(prize));
+    } else {
+      this.tweens.add({
+        targets: this.resultBanner,
+        scale: 1.0,
+        duration: 400,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+          if (this.wildOpponent) {
+            this.returnToExploration(false, null);
+          } else {
+            // Show "OK/TRY AGAIN" button
+            this.showDefeatRetryButton();
+          }
+        },
+      });
+    }
   }
 
   private claimBattlePrize(prize: OpponentPrize): void {
@@ -1975,6 +2084,8 @@ export class CardBattleScene extends Phaser.Scene {
       this.returnToExploration(true, prize);
       return;
     }
+    changePlayerGold(50);
+    emitIntelToast('Battle won: +50 Gold!');
     if (prize.kind === 'standard') {
       const existing = this.playerDeck.find((card) => (
         card.suit === prize.card.suit && card.rank === prize.card.rank
@@ -1996,7 +2107,15 @@ export class CardBattleScene extends Phaser.Scene {
     }
     reportPlayerProgress({ cardsClaimed: 1 });
     this.savePlayerData();
-    this.resultBanner?.setVisible(true);
+    if (this.resultBanner) {
+      this.resultBanner.setVisible(true);
+      this.tweens.add({
+        targets: this.resultBanner,
+        scale: 1.0,
+        duration: 400,
+        ease: 'Back.easeOut',
+      });
+    }
     this.showChallengePrompt();
   }
 
@@ -2028,7 +2147,7 @@ export class CardBattleScene extends Phaser.Scene {
     }
 
     // 1. Try Again Button
-    const tryAgainBtn = this.add.container(-65, 50);
+    const tryAgainBtn = this.add.container(-65, 105);
     const tryAgainShadow = this.add.graphics();
     tryAgainShadow.fillStyle(0x00ffee, 1);
     tryAgainShadow.fillRect(-52, -17, 110, 40);
@@ -2061,7 +2180,7 @@ export class CardBattleScene extends Phaser.Scene {
     });
 
     // 2. Main Menu Button (Drawn natively in Phaser for perfect alignment)
-    const mainMenuBtn = this.add.container(65, 50);
+    const mainMenuBtn = this.add.container(65, 105);
     const mainMenuShadow = this.add.graphics();
     mainMenuShadow.fillStyle(0xff00ff, 1);
     mainMenuShadow.fillRect(-52, -17, 110, 40);
