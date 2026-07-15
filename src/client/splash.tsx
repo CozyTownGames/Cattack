@@ -73,7 +73,7 @@ function SplashApp() {
         gameStore.pendingVsBattleIntro = data;
         const skipAutoLaunch = sessionStorage.getItem('skip_shared_battle_autostart') === '1';
         sessionStorage.removeItem('skip_shared_battle_autostart');
-        if (daily.active) {
+        if (daily.active || daily.expired) {
           if (needsStarterPack()) deferredInlineMode.current = 'dailyBooster';
           else setInlineMode('dailyBooster');
         } else if (publishedChallenge && !skipAutoLaunch) {

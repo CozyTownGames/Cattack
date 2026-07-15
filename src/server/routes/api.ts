@@ -203,29 +203,50 @@ const createDailyBoosterChoices = (): DailyBoosterReward[] => {
   });
 };
 
+const getDailyBoosterAvailability = async (postId: string): Promise<{ active: boolean; expired: boolean; expiresAt: number | null }> => {
+  const [marker, storedExpiresAt] = await Promise.all([
+    redis.get(`daily_booster_post:${postId}`),
+    redis.get(`daily_booster_expires_at:${postId}`),
+  ]);
+  const expiresAt = storedExpiresAt ? Number(storedExpiresAt) : null;
+  if (expiresAt !== null && Number.isFinite(expiresAt)) {
+    const expired = Date.now() >= expiresAt;
+    return { active: !expired && Boolean(marker), expired, expiresAt };
+  }
+  return { active: Boolean(marker), expired: false, expiresAt: null };
+};
+
 api.get('/daily-booster', async (c) => {
   const postId = context.postId;
   const playerId = context.userId ?? await reddit.getCurrentUsername();
-  if (!postId || !await redis.get(`daily_booster_post:${postId}`)) {
-    return c.json<DailyBoosterResponse>({ status: 'success', active: false, claimed: false, choices: [] });
+  if (!postId) {
+    return c.json<DailyBoosterResponse>({ status: 'success', active: false, expired: false, claimed: false, choices: [] });
+  }
+  const availability = await getDailyBoosterAvailability(postId);
+  if (!availability.active) {
+    return c.json<DailyBoosterResponse>({ status: 'success', active: false, expired: availability.expired, claimed: false, choices: [] });
   }
   if (!playerId) return c.json<ErrorResponse>({ status: 'error', message: 'Signed-in player required' }, 401);
   const claimKey = `daily_booster_claim:${postId}:${playerId}`;
   const claimed = await redis.get(claimKey);
-  if (claimed) return c.json<DailyBoosterResponse>({ status: 'success', active: true, claimed: true, choices: [] });
+  if (claimed) return c.json<DailyBoosterResponse>({ status: 'success', active: true, expired: false, claimed: true, choices: [] });
   const choicesKey = `daily_booster_choices:${postId}:${playerId}`;
   const storedChoices = await redis.get(choicesKey);
   const choices: DailyBoosterReward[] = storedChoices ? JSON.parse(storedChoices) : createDailyBoosterChoices();
-  if (!storedChoices) await redis.set(choicesKey, JSON.stringify(choices), { expiration: new Date(Date.now() + 48 * 60 * 60 * 1000) });
-  return c.json<DailyBoosterResponse>({ status: 'success', active: true, claimed: false, choices });
+  if (!storedChoices && availability.expiresAt !== null) {
+    await redis.set(choicesKey, JSON.stringify(choices), { expiration: new Date(availability.expiresAt) });
+  }
+  return c.json<DailyBoosterResponse>({ status: 'success', active: true, expired: false, claimed: false, choices });
 });
 
 api.post('/daily-booster/claim', async (c) => {
   const postId = context.postId;
   const playerId = context.userId ?? await reddit.getCurrentUsername();
-  if (!postId || !playerId || !await redis.get(`daily_booster_post:${postId}`)) {
+  if (!postId || !playerId) {
     return c.json<ErrorResponse>({ status: 'error', message: 'Daily booster unavailable' }, 400);
   }
+  const availability = await getDailyBoosterAvailability(postId);
+  if (!availability.active) return c.json<ErrorResponse>({ status: 'error', message: 'Daily booster expired' }, 410);
   const body: unknown = await c.req.json();
   if (!isRecord(body) || typeof body.index !== 'number' || !Number.isInteger(body.index) || body.index < 0 || body.index > 2) {
     return c.json<ErrorResponse>({ status: 'error', message: 'Invalid reward choice' }, 400);
@@ -237,7 +258,8 @@ api.post('/daily-booster/claim', async (c) => {
   const choices: DailyBoosterReward[] = JSON.parse(storedChoices);
   const reward = choices[body.index];
   if (!reward) return c.json<ErrorResponse>({ status: 'error', message: 'Reward unavailable' }, 400);
-  await redis.set(claimKey, JSON.stringify(reward), { expiration: new Date(Date.now() + 48 * 60 * 60 * 1000) });
+  if (availability.expiresAt === null) return c.json<ErrorResponse>({ status: 'error', message: 'Daily booster expiration missing' }, 400);
+  await redis.set(claimKey, JSON.stringify(reward), { expiration: new Date(availability.expiresAt) });
   return c.json({ status: 'success', reward });
 });
 

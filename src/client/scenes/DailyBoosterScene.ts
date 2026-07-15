@@ -41,6 +41,10 @@ export class DailyBoosterScene extends Phaser.Scene {
     this.createFallingCards();
 
     void fetch('/api/daily-booster').then((response) => response.json()).then((data: DailyBoosterResponse) => {
+      if (data.expired) {
+        this.showFinished('So sad - You missed your pack.', 'OK fine!');
+        return;
+      }
       if (!data.active) {
         emitDailyBoosterFinished();
         return;
@@ -122,6 +126,11 @@ export class DailyBoosterScene extends Phaser.Scene {
   private async claimReward(panel: Phaser.GameObjects.Container): Promise<void> {
     if (this.selected < 0) return;
     const response = await fetch('/api/daily-booster/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index: this.selected }) });
+    if (response.status === 410) {
+      panel.destroy(true);
+      this.showFinished('So sad - You missed your pack.', 'OK fine!');
+      return;
+    }
     if (!response.ok) return;
     const reward = this.choices[this.selected];
     if (!reward) return;
@@ -151,13 +160,13 @@ export class DailyBoosterScene extends Phaser.Scene {
     localStorage.setItem('player_card_deck', JSON.stringify(deck));
   }
 
-  private showFinished(message: string): void {
+  private showFinished(message: string, buttonLabel = 'MAIN MENU'): void {
     const { width, height } = this.scale;
     const panel = this.add.container(width / 2, height / 2).setDepth(20);
     this.addNeonPanel(panel, Math.min(width - 30, 390), 190);
     panel.add(this.add.text(0, -35, message, { fontFamily: 'monospace', fontSize: '17px', color: '#ffff00', align: 'center', wordWrap: { width: 340 } }).setOrigin(0.5));
     const button = this.add.rectangle(0, 45, 160, 42, 0xd90053).setStrokeStyle(3, 0x00ffee).setInteractive({ useHandCursor: true });
-    panel.add([button, this.add.text(0, 45, 'MAIN MENU', { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' }).setOrigin(0.5)]);
+    panel.add([button, this.add.text(0, 45, buttonLabel, { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' }).setOrigin(0.5)]);
     button.once('pointerdown', emitDailyBoosterFinished);
   }
 }

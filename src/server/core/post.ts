@@ -31,7 +31,7 @@ export const createPost = async () => {
     timeZone: 'UTC',
   });
 
-  const title = `CATTACK!: FREE Daily Booster - ${formattedDate}`;
+  const title = `CATTACK! Grab Your FREE Booster Pack, Meow! — ${formattedDate}`;
 
   console.log(`[post] Creating daily run post: "${title}" in r/${subredditName}`);
 
@@ -45,9 +45,11 @@ export const createPost = async () => {
     },
   });
 
+  const boosterExpiresAt = Date.now() + 24 * 60 * 60 * 1000;
   await redis.set(`daily_booster_post:${post.id}`, dailySeed, {
-    expiration: new Date(Date.now() + 48 * 60 * 60 * 1000),
+    expiration: new Date(boosterExpiresAt),
   });
+  await redis.set(`daily_booster_expires_at:${post.id}`, String(boosterExpiresAt));
 
   // Save the post ID under the daily seed key (expires in 36 hours)
   await redis.set(redisKey, post.id, { expiration: new Date(Date.now() + 36 * 60 * 60 * 1000) });

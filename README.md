@@ -1,30 +1,28 @@
-## Devvit Phaser Starter
+# 🐾 Cattack!
 
-A starter to build web applications on Reddit's developer platform
+![Cattack!](public/assets/cattack-logo.png)
 
-- [Devvit](https://developers.reddit.com/): A way to build and deploy immersive games on Reddit
-- [Vite](https://vite.dev/): For compiling the webView
-- [Phaser](https://phaser.io/): 2D game engine
-- [Hono](https://hono.dev/): For backend logic
-- [TypeScript](https://www.typescriptlang.org/): For type safety
+**A cat-collecting space adventure built for Reddit.**
 
-## Getting Started
+The galaxy is crawling with mysterious cats—and they all belong in your collection. Explore hostile worlds, survive alien encounters, build a powerful card deck, and battle your way toward the ultimate goal: **collect every cat and complete the Catdex.**
 
-> Make sure you have Node 22 downloaded on your machine before running!
+## What awaits, meow?
 
-1. Run `npm create devvit@latest --template=phaser`
-2. Go through the installation wizard. You will need to create a Reddit account and connect it to Reddit developers
-3. Copy the command on the success page into your terminal
+- 🚀 **Explore strange worlds** to discover loot, resources, and wild cats.
+- 🃏 **Build your deck** with collectible cat cards and special variants.
+- ⚔️ **Battle with cards** using clever hands, discards, and feline strategy.
+- 📖 **Complete the Catdex** by finding every cat in the galaxy.
+- 🎁 **Open boosters** and visit the shop to grow your collection.
+- 🏆 **Climb the ranks** and compete on the global leaderboard.
 
-## Commands
+## How to play
 
-- `npm run dev`: Starts a development server where you can develop your application live on Reddit.
-- `npm run build`: Builds your client and server projects
-- `npm run deploy`: Uploads a new version of your app
-- `npm run launch`: Publishes your app for review
-- `npm run login`: Logs your CLI into Reddit
-- `npm run type-check`: Type checks, lints, and prettifies your app
+Start with your first pack, then choose your path from the planetary menu. Explore to find new cats and rewards, battle to test your deck, and check the Catdex to track your collection.
 
-## Credits
+Every expedition brings you one paw closer to catching them all. **Good luck, space cat—meow the odds be in your favor!**
 
-Thanks to the Phaser team for [providing a great template](https://github.com/phaserjs/template-vite-ts)!
+## Development
+
+Cattack! is a mobile-optimized [Devvit](https://developers.reddit.com/) web game powered by Phaser, TypeScript, Hono, and tRPC. It runs inside Reddit using a Node.js 22 serverless backend.
+
+Made with whiskers, paws, and a little cosmic chaos. 🐈‍⬛✨

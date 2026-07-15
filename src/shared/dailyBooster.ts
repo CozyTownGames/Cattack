@@ -7,6 +7,7 @@ export type DailyBoosterReward =
 export type DailyBoosterResponse = {
   status: 'success';
   active: boolean;
+  expired: boolean;
   claimed: boolean;
   choices: DailyBoosterReward[];
 };
