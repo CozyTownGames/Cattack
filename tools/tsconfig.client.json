@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../dist/types/client",
+    "tsBuildInfoFile": "../dist/types/client/tsconfig.tsbuildinfo",
+    "customConditions": ["browser"],
+    "rootDir": "../src/client",
+    "strictPropertyInitialization": false,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "../src/client/**/*",
+    "../src/client/**/*.tsx",
+    "../src/client/splash.tsx"
+  ],
+  "exclude": ["../src/client/TrophyView - Copy.tsx"],
+  "references": [
+    {
+      "path": "./tsconfig.shared.json"
+    }
+  ]
+}

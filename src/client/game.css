@@ -1,0 +1,401 @@
+@import url('https://fonts.googleapis.com/css2?family=Jersey+25&family=Press+Start+2P&family=VT323&family=Pixelify+Sans:wght@400..700&display=swap');
+
+@font-face {
+  font-family: 'PixelFont';
+  src: url('/pixel-font.FON');
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #0b0b1e;
+  overflow: hidden;
+  font-family: monospace;
+  touch-action: none;
+}
+
+button,
+[role='button'] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.drtc-choice-btn {
+  font-family: inherit;
+  transition: all 0.12s ease-in-out;
+}
+
+.drtc-choice-btn:hover {
+  border-color: #ffffff !important;
+  background: linear-gradient(180deg, #3d3d52 0%, #202030 100%) !important;
+}
+
+.drtc-choice-btn:hover .drtc-bullet {
+  background-color: #ffffff !important;
+  box-shadow: 0 0 6px #ffffff;
+}
+
+.drtc-bullet {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #8a8a9e;
+  margin-right: 8px;
+  flex-shrink: 0;
+  transition: background-color 0.12s, box-shadow 0.12s;
+}
+
+/* Root container — establishes the stacking context */
+#app {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Phaser injects its <canvas> inside this div */
+#game-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#game-container canvas,
+#phaser-preview-container canvas {
+  image-rendering: auto;
+  touch-action: none;
+}
+
+/* React HUD overlay — sits above the canvas, passes pointer events through */
+#ui-root {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Phaser input works normally under this layer */
+  z-index: 10;
+  filter:
+    drop-shadow(0.5px 0 rgba(255, 0, 85, 0.14))
+    drop-shadow(-0.5px 0 rgba(0, 255, 238, 0.14));
+}
+
+.shop-terminal-panel {
+  animation: shop-terminal-in 180ms steps(3, end);
+  scrollbar-color: #00ffee #070b16;
+  scrollbar-width: thin;
+}
+
+.shop-pack-card {
+  transition: transform 100ms steps(2, end), box-shadow 100ms steps(2, end), background-color 100ms linear;
+}
+
+.shop-pack-card:hover {
+  transform: translateY(-3px);
+  background-color: #0d1324 !important;
+  box-shadow: 4px 4px 0 rgba(255, 0, 255, 0.38);
+}
+
+.shop-pack-image {
+  animation: shop-pack-float 1.4s steps(6, end) infinite;
+}
+
+.shop-pack-to-open {
+  animation: shop-pack-ready 0.8s steps(4, end) infinite;
+}
+
+.shop-pack-to-open:hover img {
+  transform: scale(1.06);
+}
+
+.shop-pack-particle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #00ffee;
+  box-shadow: 0 0 8px currentColor;
+  animation: shop-particle-1 650ms steps(6, end) forwards;
+}
+
+.shop-pack-particle:nth-child(3n) { background: #ff00ff; }
+.shop-pack-particle:nth-child(3n + 1) { background: #ffff00; }
+.shop-pack-particle:nth-child(8n + 2) { animation-name: shop-particle-2; }
+.shop-pack-particle:nth-child(8n + 3) { animation-name: shop-particle-3; }
+.shop-pack-particle:nth-child(8n + 4) { animation-name: shop-particle-4; }
+.shop-pack-particle:nth-child(8n + 5) { animation-name: shop-particle-5; }
+.shop-pack-particle:nth-child(8n + 6) { animation-name: shop-particle-6; }
+.shop-pack-particle:nth-child(8n + 7) { animation-name: shop-particle-7; }
+.shop-pack-particle:nth-child(8n) { animation-name: shop-particle-8; }
+
+.shop-revealed-reward {
+  opacity: 0;
+  animation: shop-card-reveal 360ms steps(5, end) forwards;
+}
+
+.shop-revealed-reward:nth-child(2) { animation-delay: 90ms; }
+.shop-revealed-reward:nth-child(3) { animation-delay: 180ms; }
+.shop-revealed-reward:nth-child(4) { animation-delay: 270ms; }
+.shop-revealed-reward:nth-child(5) { animation-delay: 360ms; }
+
+.shop-action-button {
+  transition: transform 80ms steps(2, end), background-color 80ms linear, color 80ms linear;
+}
+
+.shop-action-button:hover {
+  transform: translate(-2px, -2px);
+  background-color: #1b2540 !important;
+  box-shadow: 3px 3px 0 rgba(0, 255, 238, 0.45);
+}
+
+.shop-action-button:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+.leaderboard-terminal-panel {
+  animation: leaderboard-terminal-in 180ms steps(3, end);
+  scrollbar-color: #00ffee #070b16;
+  scrollbar-width: thin;
+}
+
+.leaderboard-tab,
+.leaderboard-row {
+  transition: transform 90ms steps(2, end), background-color 90ms linear, box-shadow 90ms linear;
+}
+
+.leaderboard-tab:hover {
+  transform: translate(-2px, -2px);
+  background-color: #16243b !important;
+  box-shadow: 3px 3px 0 rgba(0, 255, 238, 0.4);
+}
+
+.leaderboard-row:hover {
+  transform: translateX(3px);
+  background-color: #111c30 !important;
+  box-shadow: -3px 0 0 rgba(255, 0, 255, 0.35);
+}
+
+.trophy-terminal-panel,
+.trophy-detail-panel {
+  animation: trophy-terminal-in 180ms steps(3, end);
+}
+
+.trophy-control,
+.trophy-card-slot {
+  transition: transform 90ms steps(2, end), background-color 90ms linear, box-shadow 90ms linear;
+}
+
+.trophy-control:not(:disabled):hover {
+  transform: translate(-2px, -2px);
+  background-color: #16243b !important;
+  box-shadow: 3px 3px 0 rgba(0, 255, 238, 0.42);
+}
+
+.trophy-control:disabled {
+  opacity: 0.35;
+  cursor: default !important;
+}
+
+.trophy-card-slot:not(:disabled):hover {
+  transform: translateY(-3px);
+  background-color: #111c30 !important;
+  box-shadow: 3px 3px 0 rgba(255, 0, 255, 0.38);
+}
+
+@keyframes shop-terminal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes leaderboard-terminal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes trophy-terminal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes shop-pack-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-5px) rotate(1deg); }
+}
+
+@keyframes shop-pack-ready {
+  0%, 100% { transform: scale(1) rotate(-1deg); }
+  50% { transform: scale(1.025) rotate(1deg); }
+}
+
+@keyframes shop-card-reveal {
+  0% { opacity: 0; transform: translateY(35px) scale(0.65) rotate(-5deg); }
+  70% { opacity: 1; transform: translateY(-6px) scale(1.08) rotate(2deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+}
+
+@keyframes shop-particle-1 { to { opacity: 0; transform: translate(150px, 0) rotate(180deg); } }
+@keyframes shop-particle-2 { to { opacity: 0; transform: translate(105px, 105px) rotate(180deg); } }
+@keyframes shop-particle-3 { to { opacity: 0; transform: translate(0, 150px) rotate(180deg); } }
+@keyframes shop-particle-4 { to { opacity: 0; transform: translate(-105px, 105px) rotate(180deg); } }
+@keyframes shop-particle-5 { to { opacity: 0; transform: translate(-150px, 0) rotate(180deg); } }
+@keyframes shop-particle-6 { to { opacity: 0; transform: translate(-105px, -105px) rotate(180deg); } }
+@keyframes shop-particle-7 { to { opacity: 0; transform: translate(0, -150px) rotate(180deg); } }
+@keyframes shop-particle-8 { to { opacity: 0; transform: translate(105px, -105px) rotate(180deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .shop-terminal-panel,
+  .leaderboard-terminal-panel,
+  .trophy-terminal-panel,
+  .trophy-detail-panel,
+  .shop-pack-image,
+  .shop-pack-to-open,
+  .shop-pack-particle,
+  .shop-revealed-reward {
+    animation: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .splash-top-row {
+    top: 42px !important;
+  }
+
+  .splash-game-logo {
+    width: min(68vw, 230px) !important;
+  }
+
+  .splash-world-button {
+    width: 112px !important;
+  }
+
+  .splash-world-button:not(#splash-battle-btn) {
+    width: min(104px, 24vh) !important;
+  }
+
+  .splash-world-label {
+    font-size: 22px !important;
+  }
+
+  .leaderboard-close {
+    position: absolute !important;
+    right: 16px !important;
+    bottom: 42px !important;
+    z-index: 3;
+  }
+
+  #shop-btn {
+    top: 25% !important;
+    left: 10% !important;
+  }
+
+  #splash-explore-btn {
+    top: 25% !important;
+    right: 10% !important;
+  }
+
+  #trophy-case-btn {
+    bottom: 22% !important;
+    left: 10% !important;
+  }
+
+  #global-leaderboard-btn {
+    bottom: 22% !important;
+    right: 10% !important;
+  }
+
+  #splash-battle-btn {
+    bottom: 7% !important;
+  }
+
+  .trophy-case-header {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 7px !important;
+  }
+
+  .trophy-title-block {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .trophy-view-toggle {
+    justify-self: start;
+  }
+
+  .trophy-header-actions {
+    justify-self: end;
+  }
+
+  .trophy-close {
+    position: absolute;
+    top: -29px;
+    right: 2px;
+    z-index: 2;
+  }
+
+  .trophy-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Game-over card fade-in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes xpFloatFade {
+  0% { opacity: 0; transform: translateY(8px) scale(0.9); }
+  18% { opacity: 1; transform: translateY(0) scale(1.08); }
+  100% { opacity: 0; transform: translateY(-34px) scale(1); }
+}
+
+.splash-crt-ui::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 14000;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.025) 0,
+    rgba(255, 255, 255, 0.025) 1px,
+    rgba(0, 0, 0, 0.13) 2px,
+    rgba(0, 0, 0, 0.13) 4px
+  );
+}
+
+.splash-crt-ui img {
+  filter: drop-shadow(0 0 9px rgba(0, 255, 238, 0.4)) drop-shadow(1px 0 rgba(255, 0, 255, 0.48)) drop-shadow(-1px 0 rgba(0, 255, 238, 0.48)) !important;
+}
+
+.splash-crt-ui button span {
+  text-shadow: 1px 0 #ff00ff, -1px 0 #00ffee, 1px 1px #000000;
+}
+
+.splash-world-button:hover .splash-world-label,
+.splash-world-button:focus-visible .splash-world-label {
+  animation: splash-label-glitch 700ms ease-in-out infinite;
+}
+
+@keyframes splash-label-glitch {
+  0%, 100% {
+    color: #ffffff;
+    text-shadow: 2px 1px #ff00ff, -2px -1px #ffff00, 0 2px 4px #000000;
+  }
+  50% {
+    color: #ffffff;
+    text-shadow: -2px -1px #ff00ff, 2px 1px #ffff00, 0 2px 4px #000000;
+  }
+}

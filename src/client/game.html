@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Cattack! — A chaotic pixel-art arcade game. Scramble for crates, blast off, then dodge asteroids in orbit."
+    />
+    <link rel="stylesheet" href="game.css" />
+    <title>Cattack! — Scramble · Ignition · Orbit</title>
+  </head>
+
+  <body>
+    <!-- Phaser renders into #game-container -->
+    <div id="app">
+      <div id="game-container"></div>
+      <!-- React HUD overlay mounts here — sits on top of the canvas -->
+      <div id="ui-root"></div>
+    </div>
+    <script type="module" src="game.ts"></script>
+  </body>
+</html>

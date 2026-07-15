@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tileset version="1.10" tiledversion="1.12.2" name="planet" tilewidth="24" tileheight="24" tilecount="80" columns="10">
+ <image source="E:/Users/Michelle/Desktop/Untitled 07-06-2026 12-50-00.PNG" width="250" height="192"/>
+ <tile id="7">
+  <animation>
+   <frame tileid="7" duration="600"/>
+   <frame tileid="17" duration="600"/>
+   <frame tileid="27" duration="600"/>
+  </animation>
+ </tile>
+</tileset>
