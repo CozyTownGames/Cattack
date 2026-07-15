@@ -1,6 +1,9 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
   "name": "cattack-game",
+  "marketingAssets": {
+    "icon": "public/assets/app-icon.png"
+  },
   "post": {
     "dir": "dist/client",
     "entrypoints": {

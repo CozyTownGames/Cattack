@@ -151,7 +151,7 @@ export function showBoosterPackOpeningLegacy(scene: BoosterScene): void {
 
     scene.tweens.killTweensOf(packGroup);
 
-    // Balatro style pack rumbling / shaking before explosion
+    // Pack rumbling / shaking before explosion
     scene.tweens.add({
       targets: packGroup,
       x: { from: -10, to: 10 },
@@ -251,7 +251,7 @@ export function showBoosterPackOpeningLegacy(scene: BoosterScene): void {
     const bigScale = 2.1;
     cardContainer.setScale(bigScale);
 
-    // Balatro card wobble/float tween
+    // Card wobble/float tween
     scene.tweens.add({
       targets: cardContainer,
       y: -65,

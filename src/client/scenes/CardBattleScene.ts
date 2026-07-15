@@ -533,7 +533,7 @@ export class CardBattleScene extends Phaser.Scene {
     this.drawPlaySlots();
     this.renderEquippedCompanionCats();
 
-    // 5. Score Board setup (Balatro style)
+    // 5. Score board setup
     this.createScoreBoard();
 
     // 6. Battle Button setup
